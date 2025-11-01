@@ -1,0 +1,89 @@
+# Python / FastAPI backend
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+*.db
+*.pid
+*.gz
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.mypy_cache/
+.pytest_cache/
+coverage/
+.env
+.env.*
+.venv/
+venv/
+*.pem
+
+# Uvicorn / FastAPI logs
+*.log
+*.pid
+
+# Local settings and secrets
+settings_local.py
+.env.local
+.env.dev
+.env.prod
+
+# VSCode
+.vscode/
+.history/
+*.code-workspace
+
+# Next.js frontend
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+pnpm-lock.yaml
+.env.local
+.env.development.local
+.env.production.local
+.env.test.local
+
+# PostgreSQL / ChromaDB data
+pg_data/
+postgres_data/
+
+# Chroma vector store (local)
+chroma/
+db/
+chroma_db/
+chroma_data/
+index/
+*.parquet
+*.bin
+
+# Docker / System
+*.tar
+*.img
+*.bak
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+logs/
+tmp/
+cache/
+__MACOSX/
+
+# PyCharm / JetBrains
+.idea/
+*.iml
+
+# Optional project files
+uploads/
+documents/
+data/
+media/
+staticfiles/
