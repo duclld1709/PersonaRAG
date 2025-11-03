@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
 
 from langchain_core.documents import Document
 from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader, Docx2txtLoader

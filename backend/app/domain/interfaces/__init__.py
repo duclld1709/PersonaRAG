@@ -5,6 +5,7 @@ from .document_repository import DocumentRepository
 from .embedding_client import EmbeddingClient
 from .llm_client import LLMClient
 from .vector_store import VectorStore
+from .ingestion import DocumentIndexer
 
 __all__ = [
     "ConversationRepository",
@@ -12,4 +13,5 @@ __all__ = [
     "EmbeddingClient",
     "LLMClient",
     "VectorStore",
+    "DocumentIndexer"
 ]

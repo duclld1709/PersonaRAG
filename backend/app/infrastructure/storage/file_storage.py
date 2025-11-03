@@ -4,8 +4,10 @@ from pathlib import Path
 import re
 from uuid import UUID
 
+from backend.app.domain.interfaces.document_storage import DocumentStorage
 
-class LocalFileStorage:
+
+class LocalFileStorage(DocumentStorage):
     """Simple file storage adapter for text documents."""
 
     def __init__(self, base_path: Path) -> None:
