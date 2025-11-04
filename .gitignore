@@ -83,7 +83,6 @@ __MACOSX/
 
 # Optional project files
 uploads/
-documents/
 data/
 media/
 staticfiles/
