@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from langchain_core.documents import Document
-from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader, Docx2txtLoader
+from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader, Docx2txtLoader, TextLoader
 
 def load_documents(docs_path: Path) -> list[Document]:
     """Load all .txt, .pdf, .docx from the supplied directory"""
@@ -13,7 +13,7 @@ def load_documents(docs_path: Path) -> list[Document]:
     if not docs_path.exits():
         raise FileNotFoundError(f"The directory {docs_path} does not exitst. Please create it and add your files.")
     
-    loaders_dict = {".pdf": PyPDFLoader, ".docx": Docx2txtLoader}
+    loaders_dict = {".pdf": PyPDFLoader, ".docx": Docx2txtLoader, ".txt": TextLoader}
     documents = list()
 
     for ext, loader in loaders_dict.items():

@@ -125,7 +125,7 @@ class DocumentIngestionPipeline(DocumentIndexer):
             document_id,
             len(chunks_to_add),
             len(ids_to_delete),
-            len(new_chunk) - len(chunks_to_add)
+            len(new_chunks) - len(chunks_to_add)
         )
 
         if run_tree and hasattr(run_tree, "add_metadata"):
