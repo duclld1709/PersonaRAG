@@ -1,9 +1,8 @@
 """Pydantic schemas for configuration settings."""
 
-from dataclasses import Field
 from typing import Literal
 
-from openai import BaseModel
+from pydantic import BaseModel, Field
 
 
 EmbeddingProvider = Literal["openai", "huggingface"]

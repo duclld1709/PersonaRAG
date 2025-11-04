@@ -6,10 +6,10 @@ from typing import Any, Mapping
 from uuid import UUID
 from xml.dom.minidom import Document
 
-from backend.app.core.config import Settings
-from backend.app.domain.interfaces.ingestion import DocumentIndexer
-from backend.app.domain.interfaces.vector_store import VectorStore
-from backend.app.ingestion.splitters import split_documents
+from app.core.config import Settings
+from app.domain.interfaces.ingestion import DocumentIndexer
+from app.domain.interfaces.vector_store import VectorStore
+from app.ingestion.splitters import split_documents
 
 
 logger = getLogger(__name__)

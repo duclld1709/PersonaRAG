@@ -1,26 +1,26 @@
 """Shared application bootstrap utilities."""
 
-import os
+from __future__ import annotations
+
 from typing import Any
 
 from fastapi import FastAPI
 
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_core.embeddings import Embeddings
-from langchain_openai import OpenAIEmbeddings
-
-from backend.app.core.config import Settings
-
-from app.infrastructure.persistence import FileDocumentRepository, InMemoryConversationRepository
-from backend.app.infrastructure.storage.file_storage import LocalFileStorage
-from backend.app.infrastructure.vectorstores.chroma import ChromaVectorStore
-from backend.app.ingestion.pipeline import DocumentIngestionPipeline
-from backend.app.services.chat_service import ChatService
-from backend.app.services.conversation_service import ConversationService
-from backend.app.services.document_service import DocumentService
+from app.core.config import Settings
+from app.ingestion.pipeline import DocumentIngestionPipeline
 from app.infrastructure.llm import GeminiChatClient, OpenAIChatClient
+from app.infrastructure.persistence import FileDocumentRepository, InMemoryConversationRepository
+from app.infrastructure.storage import LocalFileStorage
+from app.infrastructure.vectorstores import ChromaVectorStore
+from app.infrastructure.embeddings import (
+    HuggingFaceEmbeddingClient,
+    OpenAIEmbeddingClient,
+)
+from app.domain.interfaces.embedding_client import EmbeddingClient
+from app.services import ChatService, ConversationService, DocumentService
 
-def bootstrap_dependencies(app: FastAPI, settings: Settings, *, force_reindex:bool = False) -> None:
+
+def bootstrap_dependencies(app: FastAPI, settings: Settings, *, force_reindex: bool = False) -> None:
     embedding_model = _resolve_embedding_model(app, settings)
     vector_store = ChromaVectorStore(settings.vectorstore_path, embedding_model)
 
@@ -55,18 +55,16 @@ def bootstrap_dependencies(app: FastAPI, settings: Settings, *, force_reindex:bo
     app.state.embedding_model_config = _embedding_config_for(settings)
 
 
-def _resolve_embedding_model(app: FastAPI, settings: Settings) -> Embeddings:
-    config = _embedding_config_for(settings)
-    cached_model: Any | None = getattr(app.state, "embedding_model", None)
-    cached_config = getattr(app.state, "embedding_model_config", None)
+def refresh_llm_client(app: FastAPI, settings: Settings) -> None:
+    """Refresh only the LLM client on the existing chat service."""
 
-    if cached_model is not None and cached_config == config:
-        return cached_model
-    
-    embedding_model = _create_embedding_model(settings)
-    app.state.embedding_model = embedding_model
-    app.state.embedding_model_config = config
-    return embedding_model
+    chat_service: Any | None = getattr(app.state, "chat_service", None)
+    if not isinstance(chat_service, ChatService):
+        bootstrap_dependencies(app, settings)
+        return
+
+    chat_service.update_llm_client(_create_llm_client(settings))
+    app.state.chat_service = chat_service
 
 
 def _resolve_conversation_repository(app: FastAPI) -> InMemoryConversationRepository:
@@ -76,23 +74,45 @@ def _resolve_conversation_repository(app: FastAPI) -> InMemoryConversationReposi
         if isinstance(repository, InMemoryConversationRepository):
             return repository
     return InMemoryConversationRepository()
-    
-def _embedding_config_for(settings: Settings) -> tuple[str, str]:
-    if settings.embedding_provider == "huggingface":
-        return (settings.embedding_provider, settings.huggingface_embedding_model)
-    return (settings.embedding_provider, settings.embedding_model)
 
-def _create_embedding_model(settings: Settings) -> Embeddings:
+
+def _resolve_embedding_model(app: FastAPI, settings: Settings) -> EmbeddingClient:
+    config = _embedding_config_for(settings)
+    cached_model: Any | None = getattr(app.state, "embedding_model", None)
+    cached_config = getattr(app.state, "embedding_model_config", None)
+
+    if cached_model is not None and cached_config == config:
+        return cached_model
+
+    embedding_model = _create_embedding_model(settings)
+    app.state.embedding_model = embedding_model
+    app.state.embedding_model_config = config
+    return embedding_model
+
+
+def _create_embedding_model(settings: Settings) -> EmbeddingClient:
     if settings.embedding_provider == "huggingface":
-        if settings.huggingface_api_token:
-            os.environ.setdefault("HUGGINGFACEHUB_API_TOKEN", settings.huggingface_api_token)
-        return HuggingFaceEmbeddings(model_name=settings.huggingface_embedding_model)
-    return OpenAIEmbeddings(model=settings.embedding_model, api_key=settings.openai_api_key)
+        return HuggingFaceEmbeddingClient(
+            model_name=settings.huggingface_embedding_model,
+            api_token=settings.huggingface_api_token,
+        )
+    return OpenAIEmbeddingClient(
+        model_name=settings.embedding_model,
+        api_key=settings.openai_api_key,
+    )
+
 
 def _create_llm_client(settings: Settings) -> OpenAIChatClient | GeminiChatClient:
     if settings.llm_provider == "gemini":
         return GeminiChatClient(model_name=settings.gemini_chat_model, api_key=settings.gemini_api_key)
     return OpenAIChatClient(model_name=settings.chat_model, api_key=settings.openai_api_key)
+
+
+def _embedding_config_for(settings: Settings) -> tuple[str, str]:
+    if settings.embedding_provider == "huggingface":
+        return (settings.embedding_provider, settings.huggingface_embedding_model)
+    return (settings.embedding_provider, settings.embedding_model)
+
 
 def _warm_vector_store(document_service: DocumentService) -> None:
     try:
@@ -101,9 +121,11 @@ def _warm_vector_store(document_service: DocumentService) -> None:
     except FileNotFoundError:
         document_service.reset_index()
 
+
 def _reset_and_reindex(document_service: DocumentService) -> None:
     try:
         document_service.reset_index()
         document_service.reindex_all()
     except FileNotFoundError:
         document_service.reset_index()
+

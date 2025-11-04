@@ -1,6 +1,6 @@
 """LLM client implementations."""
 
-from .gemini_chat import ChatGoogleGenerativeAI
-from .openai_chat import ChatOpenAI
+from .gemini_chat import GeminiChatClient
+from .openai_chat import OpenAIChatClient
 
-__all__ = ["ChatOpenAI", "ChatGoogleGenerativeAI"]
+__all__ = ["OpenAIChatClient", "GeminiChatClient"]

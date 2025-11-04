@@ -1,7 +1,7 @@
 """OpenAI embedidngs adapter."""
 
 from typing import Iterable, Sequence
-from backend.app.domain.interfaces.embedding_client import EmbeddingClient
+from app.domain.interfaces.embedding_client import EmbeddingClient
 
 from langchain_openai import OpenAIEmbeddings
 

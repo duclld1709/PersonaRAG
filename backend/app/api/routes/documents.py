@@ -10,10 +10,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from pypdf import PdfReader
 from docx import Document as DocxDocument
 
-from backend.app.api.dependencies import get_document_service
-from backend.app.api.schemas.documents import DocumentDetailResponse, DocumentResponse, DocumentUpsertRequest
-from backend.app.domain.models.document import DocumentRecord
-from backend.app.services.document_service import DocumentService
+from app.api.dependencies import get_document_service
+from app.api.schemas.documents import DocumentDetailResponse, DocumentResponse, DocumentUpsertRequest
+from app.domain.models.document import DocumentRecord
+from app.services.document_service import DocumentService
 
 
 router = APIRouter()

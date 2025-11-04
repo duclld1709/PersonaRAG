@@ -12,9 +12,9 @@ from app.api.schemas.settings import (
     SettingsResponse,
     SettingsUpdateRequest,
 )
-from backend.app.api.dependencies import get_settings
-from backend.app.bootstrap import bootstrap_dependencies, refresh_llm_client
-from backend.app.core.config import Settings
+from app.api.dependencies import get_settings
+from app.bootstrap import bootstrap_dependencies, refresh_llm_client
+from app.core.config import Settings
 
 
 router = APIRouter()

@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 from typing import Sequence
 from uuid import UUID
-from backend.app.domain.interfaces.document_repository import DocumentRepository
-from backend.app.domain.models.document import DocumentRecord
+from app.domain.interfaces.document_repository import DocumentRepository
+from app.domain.models.document import DocumentRecord
 
 
 class FileDocumentRepository(DocumentRepository):

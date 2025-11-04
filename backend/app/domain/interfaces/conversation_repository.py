@@ -3,7 +3,7 @@
 from typing import Protocol, Sequence
 from uuid import UUID
 
-from backend.app.domain.models.chat import ChatMessage, Conversation
+from app.domain.models.chat import ChatMessage, Conversation
 
 
 class ConversationRepository(Protocol):

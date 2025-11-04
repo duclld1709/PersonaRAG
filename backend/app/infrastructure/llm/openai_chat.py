@@ -1,7 +1,7 @@
 """OpenAI chat completion adapter."""
 
 from typing import Any, Iterable, Type
-from backend.app.domain.interfaces.llm_client import LLMClient
+from app.domain.interfaces.llm_client import LLMClient
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage

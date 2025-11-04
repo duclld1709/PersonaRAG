@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 from uuid import UUID
 
-from backend.app.domain.interfaces.document_storage import DocumentStorage
+from app.domain.interfaces.document_storage import DocumentStorage
 
 
 class LocalFileStorage(DocumentStorage):
@@ -12,7 +12,7 @@ class LocalFileStorage(DocumentStorage):
 
     def __init__(self, base_path: Path) -> None:
         self._base_path = base_path.resolve()
-        self._base_path.makdir(parents=True, exist_ok=True)
+        self._base_path.mkdir(parents=True, exist_ok=True)
     
     def save_text(self, storage_name: Path | str, content: str) -> Path:
         """Persist raw text content using a storage-safe filename."""

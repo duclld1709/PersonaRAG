@@ -2,8 +2,8 @@
 
 from typing import OrderedDict, Sequence
 from uuid import UUID
-from backend.app.domain.interfaces.conversation_repository import ConversationRepository
-from backend.app.domain.models.chat import ChatMessage, Conversation
+from app.domain.interfaces.conversation_repository import ConversationRepository
+from app.domain.models.chat import ChatMessage, Conversation
 
 class InMemoryConversationRepository(ConversationRepository):
     """Retains conversations in process memory."""

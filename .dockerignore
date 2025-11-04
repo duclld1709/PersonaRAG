@@ -1,0 +1,23 @@
+# Global ignores
+.git
+.gitignore
+.vscode
+.DS_Store
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+**/__pycache__/
+.env
+.env.*
+logs/
+backend/.venv/
+backend/.mypy_cache/
+backend/.pytest_cache/
+backend/tests/
+frontend/node_modules/
+frontend/.next/
+frontend/.turbo/
+frontend/out/
+frontend/.vercel/
+Dockerfile.old

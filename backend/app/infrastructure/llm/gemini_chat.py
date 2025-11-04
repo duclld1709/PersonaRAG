@@ -4,11 +4,11 @@ from typing import Any, Iterable, Type
 
 from langchain_core.messages import BaseMessage
 from pydantic import BaseModel
-from backend.app.domain.interfaces.llm_client import LLMClient
+from app.domain.interfaces.llm_client import LLMClient
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 
-class GeminiClient(LLMClient):
+class GeminiChatClient(LLMClient):
     """Adapter that wraps LangChain's ChatGoogleGenerativeAI client."""
 
     def __init__(self, model_name: str, api_key: str | None = None, *, temperature: float = 0.2) -> None:
