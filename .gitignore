@@ -17,7 +17,6 @@ build/
 .pytest_cache/
 coverage/
 .env
-.env.*
 .venv/
 venv/
 *.pem
