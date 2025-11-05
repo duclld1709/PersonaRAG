@@ -40,6 +40,15 @@ The chatbot then generates responses **exclusively grounded in the uploaded data
 
 ---
 
+## Tech Stack
+**Backend**: FastAPI , Uvicorn; LangChain  
+**Vector Store**: ChromaDB  
+**LLM & Embeddings**: OpenAI or Google Gemini; OpenAI Embeddings or HuggingFace  
+**Frontend**: Next.js 14 (React 18, TypeScript), Tailwind CSS, SWR  
+**Streaming**: Server‑Sent Events  
+**Deployment**: Docker & Docker Compose   
+**Config/Observability**: Pydantic Settings, dotenv; LangSmith  
+
 ## 🧩 Project Structure
 
 ```
