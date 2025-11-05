@@ -1,4 +1,10 @@
-"""Interface for document ingestion."""
+"""Port for document ingestion/indexing used by services.
+
+Defines the minimal contract that an ingestion pipeline must satisfy
+so application services do not depend on a concrete implementation.
+"""
+
+from __future__ import annotations
 
 from typing import Any, Mapping, Protocol
 from uuid import UUID
@@ -21,3 +27,4 @@ class DocumentIndexer(Protocol):
     def reset(self) -> None: ...
 
     def count(self) -> int: ...
+

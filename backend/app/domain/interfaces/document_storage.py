@@ -1,4 +1,10 @@
-"""Port for document storage operatoins used by services."""
+"""Port for document storage operations used by services.
+
+Application services should depend on this protocol instead of any
+concrete storage implementation (Local FS, S3, etc.).
+"""
+
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Protocol
@@ -15,3 +21,4 @@ class DocumentStorage(Protocol):
     def delete(self, location: Path | str) -> None: ...
 
     def build_text_filename(self, original_filename: str, document_id: UUID) -> str: ...
+

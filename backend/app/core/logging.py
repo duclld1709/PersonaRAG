@@ -1,12 +1,13 @@
-"""Logging helpers for backend application"""
+"""Logging helpers for the backend application."""
 
 import logging
 from pathlib import Path
 
 from .config import Settings
 
+
 def configure_logging(settings: Settings) -> None:
-    """Configure application-level logging"""
+    """Configure application-level logging."""
 
     log_dir: Path = settings.logs_path
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -19,7 +20,7 @@ def configure_logging(settings: Settings) -> None:
         handlers=[
             logging.FileHandler(logfile, encoding="utf-8"),
             logging.StreamHandler(),
-        ]
+        ],
     )
 
     logging.getLogger("uvicorn").setLevel(logging.INFO)

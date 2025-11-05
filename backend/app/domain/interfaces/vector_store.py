@@ -1,11 +1,14 @@
 """Abstraction over vector store implementations."""
 
+from __future__ import annotations
+
 from typing import Iterable, Protocol, Sequence
-from xml.dom.minidom import Document
+
+from langchain_core.documents import Document
 
 
 class VectorStore(Protocol):
-    "Constract for embeddings persistence and retrieval."
+    """Contract for embedding persistence and retrieval."""
 
     def add_documents(self, documents: Iterable[Document]) -> None: ...
 
@@ -13,7 +16,7 @@ class VectorStore(Protocol):
 
     def get(self, *, filter: dict | None = None) -> Sequence[Document]: ...
 
-    def as_retriever(self, **kwargs) -> any:
+    def as_retriever(self, **kwargs) -> any:  # type: ignore[valid-type]
         """Return a retriever wrapper from the underlying vector store."""
         ...
 

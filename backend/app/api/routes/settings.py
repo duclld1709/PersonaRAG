@@ -1,8 +1,12 @@
 """Settings management endpoints."""
 
+from __future__ import annotations
+
 from typing import cast
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
+from app.api.dependencies import get_settings
 from app.api.schemas.settings import (
     FloatRangeOption,
     GeminiModel,
@@ -12,10 +16,8 @@ from app.api.schemas.settings import (
     SettingsResponse,
     SettingsUpdateRequest,
 )
-from app.api.dependencies import get_settings
 from app.bootstrap import bootstrap_dependencies, refresh_llm_client
 from app.core.config import Settings
-
 
 router = APIRouter()
 
@@ -32,6 +34,7 @@ OPTIONS = SettingsOptions(
     retrieval_lambda=FloatRangeOption(min=0.0, max=1.0, step=0.05),
 )
 
+
 @router.get("", response_model=SettingsResponse)
 def read_settings(settings: Settings = Depends(get_settings)) -> SettingsResponse:
     """Return the current runtime settings."""
@@ -43,7 +46,7 @@ def read_settings(settings: Settings = Depends(get_settings)) -> SettingsRespons
 def update_settings(
     payload: SettingsUpdateRequest,
     request: Request,
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings),
 ) -> SettingsResponse:
     """Update runtime settings, rebuilding services if required."""
 
@@ -105,6 +108,7 @@ def update_settings(
         request.app.state.settings = settings
 
     return _serialize_settings(settings)
+
 
 def _serialize_settings(settings: Settings) -> SettingsResponse:
     return SettingsResponse(

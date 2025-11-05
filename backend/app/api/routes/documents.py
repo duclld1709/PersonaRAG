@@ -1,20 +1,19 @@
 """Document management endpoints."""
 
+from __future__ import annotations
 
 from io import BytesIO
 from pathlib import Path
 from uuid import UUID
 
-
+from docx import Document as DocxDocument
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pypdf import PdfReader
-from docx import Document as DocxDocument
 
 from app.api.dependencies import get_document_service
 from app.api.schemas.documents import DocumentDetailResponse, DocumentResponse, DocumentUpsertRequest
 from app.domain.models.document import DocumentRecord
 from app.services.document_service import DocumentService
-
 
 router = APIRouter()
 
@@ -26,30 +25,33 @@ def list_documents(document_service: DocumentService = Depends(get_document_serv
     documents = document_service.list_documents()
     return [to_response(doc) for doc in documents]
 
+
 @router.post("/", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     file: UploadFile = File(...),
     filename: str | None = Form(None),
-    document_service: DocumentService = Depends(get_document_service)
+    document_service: DocumentService = Depends(get_document_service),
 ) -> DocumentResponse:
     display_name = (filename or file.filename or "").strip()
     if not display_name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required.")
+
     try:
         content = await extract_text_from_upload(file)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process document.") from exc
-    finally: 
+    finally:
         await file.close()
 
     try:
-        record = document_service.upsert_document(filename= display_name, content=content)
+        record = document_service.upsert_document(filename=display_name, content=content)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    
+
     return to_response(record)
+
 
 @router.put("/{document_id}", response_model=DocumentResponse)
 def update_document(
@@ -91,36 +93,37 @@ def delete_document(
     record = document_service.get_document(document_id)
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    document_service.delete_document(document_id)    
-    
+    document_service.delete_document(document_id)
+
 
 def to_response(
     record: DocumentRecord,
     *,
-    content: str | None = None
+    content: str | None = None,
 ) -> DocumentResponse | DocumentDetailResponse:
     payload = {
         "id": record.id,
         "filename": record.filename,
         "summary": record.summary,
-        "uploaded_at": record.upload_at,
-        "updated_at": record.updated_at
+        "uploaded_at": record.uploaded_at,
+        "updated_at": record.updated_at,
     }
     if content is not None:
         return DocumentDetailResponse(**payload, content=content)
     return DocumentResponse(**payload)
 
+
 async def extract_text_from_upload(upload: UploadFile) -> str:
     extension = Path(upload.filename or "").suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
-        raise ValueError("Unsupported file type. Allowed extensionL .txt, .pdf, .docx.")
-    
+        raise ValueError("Unsupported file type. Allowed extensions: .txt, .pdf, .docx.")
+
     raw_bytes = await upload.read()
     if not raw_bytes:
         raise ValueError("Uploaded file is empty.")
-    
+
     if extension == ".txt":
-        try: 
+        try:
             text = raw_bytes.decode("utf-8")
         except UnicodeDecodeError:
             text = raw_bytes.decode("utf-8", errors="ignore")
@@ -133,7 +136,7 @@ async def extract_text_from_upload(upload: UploadFile) -> str:
             if extracted:
                 pages.append(extracted.strip())
         content = "\n\n".join(pages).strip()
-    else:
+    else:  # .docx
         document = DocxDocument(BytesIO(raw_bytes))
         segments: list[str] = []
         segments.extend(p.text.strip() for p in document.paragraphs if p.text.strip())

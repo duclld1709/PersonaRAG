@@ -1,5 +1,7 @@
 """Repository abstraction for document metadata and storage."""
 
+from __future__ import annotations
+
 from typing import Protocol, Sequence
 from uuid import UUID
 
@@ -13,8 +15,6 @@ class DocumentRepository(Protocol):
 
     def get(self, document_id: UUID) -> DocumentRecord | None: ...
 
-    def upsert(self, recor: DocumentRecord) -> DocumentRecord: ...
+    def upsert(self, record: DocumentRecord) -> DocumentRecord: ...
 
     def delete(self, document_id: UUID) -> None: ...
-
-    

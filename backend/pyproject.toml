@@ -1,8 +1,8 @@
 [project]
-name = "PersonaRAG"
+name = "rag-chatbot-backend"
 version = "0.1.0"
-description = "Backend FastAPI with modular layered architecture"
-readme="README.md"
+description = "FastAPI backend for a modular RAG chatbot"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.111.0",

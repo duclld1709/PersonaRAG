@@ -1,9 +1,10 @@
 """Pydantic schemas for configuration settings."""
 
+from __future__ import annotations
+
 from typing import Literal
 
 from pydantic import BaseModel, Field
-
 
 EmbeddingProvider = Literal["openai", "huggingface"]
 LLMProvider = Literal["openai", "gemini"]
@@ -21,8 +22,8 @@ class IntRangeOption(BaseModel):
 
 class FloatRangeOption(BaseModel):
     """Describe float slider boundaries."""
-    
-    min: float = Field(gr=0.0)
+
+    min: float = Field(ge=0.0)
     max: float = Field(gt=0.0)
     step: float = Field(default=0.1, gt=0.0)
 
@@ -32,6 +33,7 @@ class SettingsOptions(BaseModel):
 
     embedding_providers: list[EmbeddingProvider]
     llm_providers: list[LLMProvider]
+    openai_models: list[OpenAIModel]
     gemini_models: list[GeminiModel]
     query_variations: IntRangeOption
     retrieval_k: IntRangeOption
@@ -61,4 +63,3 @@ class SettingsUpdateRequest(BaseModel):
     llm_provider: LLMProvider | None = None
     chat_model: OpenAIModel | None = None
     gemini_chat_model: GeminiModel | None = None
-

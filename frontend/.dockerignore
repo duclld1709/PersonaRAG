@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+build
+.cache
+.DS_Store
+.vscode
+.git
+

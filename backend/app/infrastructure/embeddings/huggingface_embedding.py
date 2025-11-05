@@ -5,8 +5,10 @@ from __future__ import annotations
 from typing import Iterable, Sequence
 import os
 
-
-from langchain_community.embeddings import HuggingFaceEmbeddings
+try:  # Prefer the dedicated package when available
+    from langchain_huggingface import HuggingFaceEmbeddings  # type: ignore[assignment]
+except ImportError:  # Fallback to community implementation
+    from langchain_community.embeddings import HuggingFaceEmbeddings  # type: ignore[assignment]
 
 from app.domain.interfaces.embedding_client import EmbeddingClient
 
@@ -15,6 +17,7 @@ class HuggingFaceEmbeddingClient(EmbeddingClient):
     """Adapter that wraps LangChain's HuggingFaceEmbeddings."""
 
     def __init__(self, model_name: str, api_token: str | None = None) -> None:
+        # Set env var for both community and huggingface integrations
         if api_token:
             os.environ.setdefault("HUGGINGFACEHUB_API_TOKEN", api_token)
         self._client = HuggingFaceEmbeddings(model_name=model_name)

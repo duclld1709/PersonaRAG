@@ -1,17 +1,13 @@
-"""Domain model for ingested documents"""
+"""Domain model for ingested documents."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
-from uuid import UUID, uuid4
 from typing import Optional
-from datetime import datetime, timezone, timedelta
+from uuid import UUID, uuid4
 
-
-def now_vn() -> datetime:
-    """Return current datetime in Vietnam timezone (UTC+7)."""
-    return datetime.now(timezone(timedelta(hours=7)))
 
 @dataclass
 class DocumentRecord:
@@ -21,10 +17,10 @@ class DocumentRecord:
     source_path: Path
     id: UUID = field(default_factory=uuid4)
     summary: Optional[str] = None
-    uploaded_at: datetime = field(default_factory=now_vn())
-    updated_at: datetime = field(default_factory=now_vn())
+    uploaded_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
 
     def touch(self) -> None:
         """Mark the document as updated."""
 
-        self.updated_at = now_vn()
+        self.updated_at = datetime.utcnow()

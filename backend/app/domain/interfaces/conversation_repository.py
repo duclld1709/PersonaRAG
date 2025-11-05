@@ -1,9 +1,11 @@
 """Repository abstraction for persisting chat conversations."""
 
+from __future__ import annotations
+
 from typing import Protocol, Sequence
 from uuid import UUID
 
-from app.domain.models.chat import ChatMessage, Conversation
+from ..models.chat import ChatMessage, Conversation
 
 
 class ConversationRepository(Protocol):
@@ -19,4 +21,4 @@ class ConversationRepository(Protocol):
 
     def rename(self, conversation_id: UUID, title: str) -> Conversation: ...
 
-    def delete(self, coversation_id: UUID) -> None: ...
+    def delete(self, conversation_id: UUID) -> None: ...
