@@ -1,3 +1,8 @@
+<div style="display: flex; justify-content: center; gap: 10px;">
+  <img src="https://github.com/user-attachments/assets/80dafe91-188a-4c3c-a128-b0656915a676" width="48%" />
+  <img src="https://github.com/user-attachments/assets/1c8f1ebc-f331-40b2-9f51-4684072a76c3" width="48%" />
+</div>
+
 
 ---
 
@@ -26,6 +31,7 @@ The chatbot then generates responses **exclusively grounded in the uploaded data
 * **Document CRUD** with **automatic re-indexing** into a Chroma vector store.
 * **Hybrid retrieval** using multi-query + **Reciprocal Rank Fusion (RRF)**.
 * **Runtime settings UI** to dynamically switch LLMs, embeddings, and parameters.
+* **Citations support** — every generated response includes **source references** that trace back to the original document chunks for transparency and verification.
 * **Clean modular layering**:
 
   ```
