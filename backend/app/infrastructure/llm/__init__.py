@@ -1,6 +1,6 @@
-"""LLM client implementations."""
+"""OpenAI LLM adapters."""
 
-from .gemini_chat import GeminiChatClient
-from .openai_chat import OpenAIChatClient
+from .openai_chat import OpenAIChatClient, OpenAIUtilityClient
+from .pricing import estimate_cost
 
-__all__ = ["OpenAIChatClient", "GeminiChatClient"]
+__all__ = ["OpenAIChatClient", "OpenAIUtilityClient", "estimate_cost"]

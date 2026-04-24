@@ -6,6 +6,7 @@ from app.core.config import Settings
 from app.services.chat_service import ChatService
 from app.services.conversation_service import ConversationService
 from app.services.document_service import DocumentService
+from app.services.usage_service import UsageService
 
 
 def get_settings(request: Request) -> Settings:
@@ -22,3 +23,7 @@ def get_conversation_service(request: Request) -> ConversationService:
 
 def get_document_service(request: Request) -> DocumentService:
     return request.app.state.document_service
+
+
+def get_usage_service(request: Request) -> UsageService:
+    return request.app.state.usage_service

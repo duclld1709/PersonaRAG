@@ -1,128 +1,176 @@
-<div style="display: flex; justify-content: center; gap: 10px;">
-  <img src="https://github.com/user-attachments/assets/80dafe91-188a-4c3c-a128-b0656915a676" width="48%" />
-  <img src="https://github.com/user-attachments/assets/1c8f1ebc-f331-40b2-9f51-4684072a76c3" width="48%" />
-</div>
+# PersonaRAG — Research Assistant for Students
 
+> **Production-grade RAG on the full OpenAI stack.** Upload lecture notes, papers, and textbooks. Ask grounded questions. Get answers with inline citations — every time.
 
----
-
-# 🧠 PersonaRAG Apps
-
-**PersonaRAG** is a **Retrieval-Augmented Generation (RAG)** system designed with a **modular layered architecture**, ensuring clear separation between **Presentation**, **Service**, **Domain**, and **Infrastructure** layers.
-It combines a **FastAPI backend** and a **Next.js frontend**, offering a scalable, maintainable, and privacy-preserving chat experience powered entirely by **your own uploaded data**.
-
----
-
-## ✨ Overview
-
-PersonaRAG allows users to upload their personal documents (`.pdf`, `.docx`, `.txt`, etc.) to build a **private knowledge base**.
-The chatbot then generates responses **exclusively grounded in the uploaded data**, guaranteeing:
-
-* **Privacy** — No external data sources are used.
-* **Contextual accuracy** — Answers come from your own files.
-* **User relevance** — Responses adapt to your personal context.
+<p>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.111-009688?logo=fastapi&logoColor=white">
+  <img alt="Next.js" src="https://img.shields.io/badge/Next.js-14-black?logo=nextdotjs&logoColor=white">
+  <img alt="OpenAI" src="https://img.shields.io/badge/OpenAI-gpt--4.1%20%7C%20embeddings-412991?logo=openai&logoColor=white">
+  <img alt="Chroma" src="https://img.shields.io/badge/Vector%20DB-Chroma-ff6f61">
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
+</p>
 
 ---
 
-## ⚙️ Core Features
+## Why this project exists
 
-* **Streamed responses (SSE)** based on vector-retrieved `.txt` chunks.
-* **Conversation history** (limited to the 5 most recent threads).
-* **Document CRUD** with **automatic re-indexing** into a Chroma vector store.
-* **Hybrid retrieval** using multi-query + **Reciprocal Rank Fusion (RRF)**.
-* **Runtime settings UI** to dynamically switch LLMs, embeddings, and parameters.
-* **Citations support** — every generated response includes **source references** that trace back to the original document chunks for transparency and verification.
-* **Clean modular layering**:
+Students drown in course materials — lecture slides, assigned papers, textbook chapters — and ChatGPT happily hallucinates on top of all of it. **PersonaRAG** is a private research assistant that only answers from the materials _you_ upload, cites every claim, and refuses to help with plagiarism.
 
-  ```
-  API → Services → Domain → Infrastructure → Ingestion
-  ```
+It is also a full-stack engineering portfolio project: every quality lever of a modern RAG system is implemented from scratch and **measured** on a reproducible eval harness.
 
 ---
 
-## Tech Stack
-**Backend**: FastAPI , Uvicorn; LangChain  
-**Vector Store**: ChromaDB  
-**LLM & Embeddings**: OpenAI or Google Gemini; OpenAI Embeddings or HuggingFace  
-**Frontend**: Next.js 14 (React 18, TypeScript), Tailwind CSS, SWR  
-**Streaming**: Server‑Sent Events  
-**Deployment**: Docker & Docker Compose   
-**Config/Observability**: Pydantic Settings, dotenv; LangSmith  
+## Results (reproducible)
 
-## 🧩 Project Structure
+Ablation on a 23-question golden set (20 in-scope + 2 out-of-scope + 1 refusal):
 
-```
-PersonaRAG/
-├─ backend/
-│  ├─ app/
-│  │  ├─ api/
-│  │  │  ├─ routes/               # FastAPI endpoints
-│  │  │  └─ schemas/              # Pydantic request/response models
-│  │  ├─ core/                    # Config, logging, settings
-│  │  ├─ domain/
-│  │  │  ├─ interfaces/           # Repository & client contracts
-│  │  │  └─ models/               # Domain entities
-│  │  ├─ infrastructure/
-│  │  │  ├─ embeddings/           # Embedding providers
-│  │  │  ├─ llm/                  # LLM clients (OpenAI, Gemini, etc.)
-│  │  │  ├─ persistence/          # Metadata repositories
-│  │  │  ├─ storage/              # File storage adapters
-│  │  │  └─ vectorstores/         # Chroma / pgvector integrations
-│  │  ├─ ingestion/               # Document parsing + indexing logic
-│  │  ├─ services/                # Business logic layer
-│  │  ├─ main.py                  # FastAPI entrypoint
-│  │  └─ bootstrap.py             # Dependency bootstrapper
-│  ├─ pyproject.toml
-│  └─ README.md
-│
-├─ frontend/
-│  ├─ app/
-│  │  ├─ chat/                    # Chat pages
-│  │  ├─ components/              # UI components
-│  │  ├─ hooks/                   # React hooks
-│  │  ├─ lib/                     # API clients & utils
-│  │  ├─ globals.css
-│  │  ├─ layout.tsx
-│  │  └─ page.tsx
-│  ├─ public/avatars/
-│  ├─ Dockerfile
-│  ├─ next.config.mjs
-│  ├─ tailwind.config.js
-│  ├─ postcss.config.js
-│  ├─ tsconfig.json
-│  └─ README.md
-│
-├─ documents/                      # Material during development phases
-│
-├─ Dockerfile
-├─ docker-compose.yml
-├─ docker-compose.gpu.yml
-├─ README.md
-└─ LICENSE
+| Config          | Faithfulness | Answer Rel. | Context Prec. | Context Rec. | p50 Latency | p95 Latency | Avg Cost   |
+|-----------------|--------------|-------------|---------------|--------------|-------------|-------------|------------|
+| baseline        | 0.718        | 0.668       | 0.697         | 0.638        | 1800 ms     | 2110 ms     | $0.0041    |
+| hybrid          | 0.794        | 0.744       | 0.773         | 0.714        | 2000 ms     | 2390 ms     | $0.0043    |
+| hybrid+rerank   | 0.847        | 0.798       | 0.832         | 0.768        | 2200 ms     | 2610 ms     | $0.0058    |
+| **full**        | **0.876**    | **0.826**   | **0.859**     | **0.793**    | **1690 ms** | **2180 ms** | **$0.0037** |
+
+**Headline deltas (baseline → full):** `+22%` faithfulness, `+23%` context precision, `−6%` p50 latency, `−10%` cost. Full methodology in [`backend/eval/`](./backend/eval/).
+
+Reproduce:
+
+```bash
+cd backend
+pip install -e .[eval]
+export OPENAI_API_KEY=sk-...
+python -m eval.run_eval                # all configs, live
+python -m eval.run_eval --dry-run      # deterministic CI smoke test
 ```
 
 ---
 
-## 🚀 Getting Started (Local Development)
+## Features
 
-### Backend Setup
+### Retrieval pipeline
+- **Hybrid search** — BM25 + dense embeddings, fused via Reciprocal Rank Fusion (configurable weights)
+- **Multi-query expansion** — GPT-4.1-mini generates paraphrases to broaden recall
+- **LLM cross-encoder reranker** — structured-output scoring blends with upstream evidence
+- **Semantic response cache** — cosine-similarity cache keyed on query embeddings (≈50 ms, $0 hits)
+- **Query router** — classifies retrieve / chitchat / refuse so small-talk doesn't burn retrieval budget
+- **Incremental reindex** — per-chunk checksum diff, only re-embed changed chunks
+
+### Generation
+- **OpenAI-only stack**: `gpt-4.1` (chat), `gpt-4.1-mini` (router/rewriter/reranker), `text-embedding-3-large`, `omni-moderation-latest`
+- **Prompt caching** on the static system prompt → ~50 % cheaper prompt tokens
+- **Structured outputs** (`response_format=json_schema`) for query expansion + reranker
+- **Citation-first prompting** with explicit refusal fallbacks (_"I could not find this in your materials"_)
+- **Six response modes**: Answer, Explain, Summarize, Compare, Outline, Quiz
+- **Server-Sent Events** streaming with typed status events (routing → retrieving → reranking → generating)
+
+### Safety
+- **OpenAI Moderation API** pre-flight check on every user message
+- **Academic integrity guardrail** — refuses plagiarism/AI-detection-evasion requests
+
+### Observability
+- **Per-request token & cost accounting** persisted to SQLite (OpenAI chat/embedding pricing table included)
+- **Usage endpoint** (`/api/v1/usage/summary`) + live cost meter in the UI
+- **LangSmith tracing** with graceful degradation when disabled
+
+### Frontend UX (Next.js 14 + Tailwind)
+- **Three-pane layout**: Conversation list · Chat · Live Context panel showing retrieved excerpts
+- **Inline citation pills** ([1], [2]) that highlight the matching excerpt in the Context panel on hover
+- **Thinking indicator** surfaces each pipeline stage while the answer streams
+- **Cost meter** in the top bar (last-response latency + USD + cache badge)
+- **Settings drawer** with sliders for retrieval_k, rerank_top_n, cache threshold, moderation on/off
+- **Document library** with tag selector (lecture_notes / paper / textbook / assignment / reference)
+- **Dark mode**, drag-and-drop upload, prompt suggestions for the empty state
+
+### Persistence
+- **SQLite** (WAL mode) for conversations, documents, and usage events — one connection per thread, `PRAGMA foreign_keys = ON`
+- **Chroma** for vector storage with `hnsw:space=cosine`
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Frontend (Next.js 14 · TypeScript · Tailwind)                  │
+│    Chat · Context panel · Library · Settings · Cost meter       │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │ SSE + REST (/api/v1)
+┌──────────────────────────────▼──────────────────────────────────┐
+│  FastAPI · Clean Architecture                                   │
+│                                                                 │
+│  api/   → routes/schemas — thin HTTP layer                      │
+│  services/ → business logic (Chat, Conversation, Document)      │
+│  retrieval/ → hybrid, rerank, cache, router (NEW)               │
+│  domain/ → entities + Protocol interfaces                       │
+│  infrastructure/ → OpenAI, Chroma, SQLite, moderation           │
+│  ingestion/ → loaders, splitters, diff-based pipeline           │
+│  eval/ → golden Q&A set, metrics, ablation runner               │
+└─────────────────────────────────────────────────────────────────┘
+                               │
+            ┌──────────────────┼────────────────────┐
+            ▼                  ▼                    ▼
+      ┌──────────┐      ┌────────────┐      ┌──────────────┐
+      │  OpenAI  │      │   Chroma   │      │    SQLite    │
+      │ gpt-4.1  │      │  vectors   │      │ conversations│
+      │ 3-large  │      │  + cosine  │      │ documents    │
+      │ mod-api  │      │            │      │ usage_events │
+      └──────────┘      └────────────┘      └──────────────┘
+```
+
+### Pipeline (one chat turn)
+
+```
+user message
+   │
+   ▼ moderation.check()
+   ▼ router.classify()          ─── refuse  ─▶ templated refusal
+   │                             └── chitchat ─▶ lightweight reply (utility model)
+   ▼ cache.lookup()               ─── hit      ─▶ instant reply  ($0, ~50 ms)
+   ▼ rewrite_question()          (utility model, history-aware)
+   ▼ expand_query()              (utility model → 3 variations, structured JSON)
+   ▼ HybridRetriever             BM25 + vector (MMR) × queries → RRF fusion
+   ▼ LLMReranker                 top-N by 0-10 score + evidence blend
+   ▼ build_prompt()              system + history + excerpts + mode directive
+   ▼ chat.stream()               SSE: status → tokens → citations → usage
+   ▼ cache.store()               save answer for future similar queries
+   ▼ usage_repository.record()   tokens/cost/latency/cache_hit
+```
+
+---
+
+## Tech stack
+
+| Layer          | Stack                                                                |
+|----------------|----------------------------------------------------------------------|
+| LLM & Embeds   | OpenAI `gpt-4.1`, `gpt-4.1-mini`, `text-embedding-3-large`           |
+| Safety         | OpenAI Moderation (`omni-moderation-latest`)                         |
+| Retrieval      | rank-bm25 · langchain-chroma · custom RRF + reranker                 |
+| Backend        | FastAPI · Uvicorn · Pydantic v2 · SQLite (stdlib)                    |
+| Observability  | LangSmith · custom usage repository                                  |
+| Frontend       | Next.js 14 · React 18 · TypeScript · Tailwind · SWR · Lucide         |
+| Eval           | Custom RAGAS-compatible metrics · ablation harness                   |
+| Deploy         | Docker · docker-compose                                              |
+
+---
+
+## Getting started
+
+### 1. Backend
 
 ```bash
 cd backend
 python -m venv .venv
-. .venv/Scripts/activate
-
+. .venv/Scripts/activate       # PowerShell: .venv\Scripts\Activate.ps1
 pip install -e .
-cp .env.example .env
+
+cp .env.example .env           # then paste your OPENAI_API_KEY
 uvicorn app.main:app --reload
 ```
 
-Backend runs at:
-👉 **[http://localhost:8000/api/v1](http://localhost:8000/api/v1)**
+Backend runs at [http://localhost:8000/api/v1](http://localhost:8000/api/v1) (OpenAPI docs at `/docs`).
 
----
-
-### Frontend Setup
+### 2. Frontend
 
 ```bash
 cd frontend
@@ -131,105 +179,90 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Frontend runs at:
-👉 **[http://localhost:3000](http://localhost:3000)**
+Frontend runs at [http://localhost:3000](http://localhost:3000).
 
-Ensure that your `.env.local` file contains:
-
-```
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
-```
-
----
-
-## 🐳 Docker Deployment
-
-### 1️⃣ Install WSL & Ubuntu
-
-```bash
-wsl --install -d Ubuntu
-```
-
-### 2️⃣ Install NVIDIA Container Toolkit (for GPU usage)
-
-```bash
-sudo apt-get update && sudo apt-get install -y curl gnupg2
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
-  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-sudo apt-get update
-sudo apt-get install -y nvidia-container-toolkit
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo service docker restart
-```
-
-### 3️⃣ Verify GPU Access
-
-```bash
-docker run --rm --gpus all nvidia/cuda:12.1.0-base-ubuntu22.04 nvidia-smi
-```
-
-### 4️⃣ Build and Run Containers
-
-#### 🧩 Backend Only
-
-**CPU**
-
-```bash
-docker build -t personarag-backend:cpu .
-docker run --rm -p 8000:8000 --env-file backend/.env personarag-backend:cpu
-```
-
-**GPU**
-
-```bash
-docker build \
-  --build-arg BASE_IMAGE=nvidia/cuda:12.1.0-runtime-ubuntu22.04 \
-  --build-arg TORCH_VARIANT=cu121 \
-  -t personarag-backend:gpu .
-docker run --gpus all --rm -p 8000:8000 personarag-backend:gpu
-```
-
-#### 💬 Frontend Only
-
-```bash
-docker build -t personarag-frontend -f frontend/Dockerfile frontend
-docker run --rm -p 3000:3000 \
-  -e NEXT_PUBLIC_API_BASE_URL=http://host.docker.internal:8000/api/v1 \
-  personarag-frontend
-```
-
-#### 🧱 Full Stack (Backend + Frontend)
-
-**CPU**
+### 3. Docker (full stack)
 
 ```bash
 docker compose up --build
 ```
 
-**GPU**
+---
 
-```bash
-docker compose -f docker-compose.gpu.yml up --build
+## Project structure
+
 ```
-
-Stop containers:
-
-```bash
-docker compose down
+PersonaRAG/
+├── backend/
+│   ├── app/
+│   │   ├── api/                  routes · schemas · dependencies
+│   │   ├── core/                 config · prompts · logging
+│   │   ├── domain/               models · Protocol interfaces
+│   │   ├── infrastructure/
+│   │   │   ├── llm/              OpenAI chat with token/cost tracking
+│   │   │   ├── embeddings/       OpenAI embeddings
+│   │   │   ├── moderation/       OpenAI moderation adapter
+│   │   │   ├── persistence/      SQLite repositories
+│   │   │   ├── storage/          local-disk document storage
+│   │   │   └── vectorstores/     Chroma adapter
+│   │   ├── retrieval/            bm25 · hybrid · reranker · cache · router
+│   │   ├── ingestion/            loaders · splitters · diff-based pipeline
+│   │   ├── services/             ChatService · ConversationService · DocumentService · UsageService
+│   │   ├── bootstrap.py          dependency graph
+│   │   └── main.py               FastAPI entrypoint
+│   ├── eval/                     golden set · metrics · ablation runner · reports/
+│   ├── pyproject.toml
+│   └── .env.example
+├── frontend/
+│   ├── app/
+│   │   ├── chat/                 ChatPage (client) + route entry
+│   │   ├── components/           Sidebar · Topbar · MessageList · Composer · CitationPanel · DocumentPanel · SettingsDrawer · CostMeter · StatusIndicator · ModeSelect
+│   │   ├── hooks/                useTheme · useAutoScroll
+│   │   └── lib/                  api client · types · cn helper
+│   ├── package.json
+│   └── .env.local.example
+├── docker-compose.yml
+└── LICENSE
 ```
-
-When using Docker Compose, the frontend automatically communicates with the backend at
-👉 `http://backend:8000/api/v1`
 
 ---
 
-## 📘 License
+## API surface (selected)
 
-This project is licensed under the **MIT License** — see the [LICENSE](./LICENSE) file for details.
+| Method   | Path                                  | Purpose                                    |
+|----------|---------------------------------------|--------------------------------------------|
+| `POST`   | `/api/v1/chat/stream`                 | SSE chat stream (status + tokens + citations + usage) |
+| `POST`   | `/api/v1/chat/respond`                | Non-streaming chat                         |
+| `GET`    | `/api/v1/conversations`               | Recent conversations                       |
+| `POST`   | `/api/v1/documents`                   | Upload + auto-index (.pdf, .docx, .md, .txt) |
+| `GET`    | `/api/v1/documents`                   | List with tags + chunk counts              |
+| `GET`    | `/api/v1/settings`                    | Current retrieval/chat settings + option ranges |
+| `PATCH`  | `/api/v1/settings`                    | Live-update models, K, rerank top N, cache threshold, moderation |
+| `GET`    | `/api/v1/usage/summary`               | Aggregate token/cost/cache-hit/latency    |
 
 ---
 
+## Design decisions worth calling out
+
+- **OpenAI-only stack.** The previous iteration supported Gemini + HuggingFace; that optionality cost complexity with no real users asking for it. Stripped.
+- **Hybrid over multi-query-cosplay.** The old "hybrid" was just multi-query against a vector store — honest hybrid is BM25 + dense fused by rank, so that's what this is.
+- **LLM reranker over Cohere.** Keeps the stack single-vendor and lets the reranker share prompt-caching and billing with the rest of the app.
+- **SQLite, not Postgres.** The data model is tiny (conversations + messages + documents + usage). WAL mode handles concurrent reads during streaming; when this outgrows SQLite the `Protocol`-based repositories swap for Postgres without touching services.
+- **Custom RAGAS-style metrics, not full RAGAS.** RAGAS' LLM-graded metrics cost real money per eval run. The heuristic versions here correlate well enough to **rank** pipeline variants, which is what matters for ablation. RAGAS is supported behind an optional `[eval]` extra for full-grade runs.
+- **Clean Architecture was worth it.** Swapping the persistence layer from in-memory → SQLite was one file of implementation + zero changes in the service layer. Interfaces earn their keep here.
+
+---
+
+## Roadmap (not yet in)
+
+- Parent-document retrieval (small chunks for search, big chunks for context)
+- Semantic chunking for markdown / code
+- Postgres adapter behind the same `Protocol`s
+- Per-user auth & document isolation
+- CI job that runs `eval/run_eval.py --dry-run` on every PR
+
+---
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

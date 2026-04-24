@@ -1,6 +1,6 @@
 {
-  "name": "rag-chatbot-frontend",
-  "version": "0.1.0",
+  "name": "personarag-frontend",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "clsx": "^2.1.1",
-    "framer-motion": "^11.18.2",
     "lucide-react": "^0.548.0",
     "next": "14.2.5",
     "react": "18.3.1",

@@ -6,9 +6,9 @@ from typing import Sequence
 from uuid import UUID, uuid4
 
 from app.domain.interfaces.document_repository import DocumentRepository
-from app.domain.models.document import DocumentRecord
-from app.domain.interfaces.ingestion import DocumentIndexer
 from app.domain.interfaces.document_storage import DocumentStorage
+from app.domain.interfaces.ingestion import DocumentIndexer
+from app.domain.models.document import DocumentRecord, DocumentTag
 
 
 class DocumentService:
@@ -30,7 +30,14 @@ class DocumentService:
     def get_document(self, document_id: UUID) -> DocumentRecord | None:
         return self._repository.get(document_id)
 
-    def upsert_document(self, filename: str, content: str, document_id: UUID | None = None) -> DocumentRecord:
+    def upsert_document(
+        self,
+        filename: str,
+        content: str,
+        document_id: UUID | None = None,
+        *,
+        tag: DocumentTag = DocumentTag.OTHER,
+    ) -> DocumentRecord:
         if not content.strip():
             raise ValueError("Document does not contain any text.")
 
@@ -41,19 +48,22 @@ class DocumentService:
 
         if existing:
             path = self._storage.save_text(existing.source_path, content)
-
             existing.filename = filename
             existing.source_path = path
             existing.summary = summary
+            existing.tag = tag
             record = existing
         else:
             new_id = document_id or uuid4()
             storage_name = self._storage.build_text_filename(filename, new_id)
             path = self._storage.save_text(storage_name, content)
-            record = DocumentRecord(id=new_id, filename=filename, source_path=path, summary=summary)
+            record = DocumentRecord(
+                id=new_id, filename=filename, source_path=path, summary=summary, tag=tag
+            )
 
+        chunks = self._index_document(record, content)
+        record.chunk_count = chunks
         saved_record = self._repository.upsert(record)
-        self._index_document(saved_record, content)
         return saved_record
 
     def delete_document(self, document_id: UUID) -> None:
@@ -71,31 +81,29 @@ class DocumentService:
         return record, content
 
     def reindex_all(self) -> int:
-        """Rebuild the vector store from all known documents."""
-
         total_chunks = 0
         for record in self._repository.list():
             try:
                 content = self._storage.read_text(record.source_path)
             except FileNotFoundError:
                 continue
-            total_chunks += self._index_document(record, content)
+            chunks = self._index_document(record, content)
+            record.chunk_count = chunks
+            self._repository.upsert(record)
+            total_chunks += chunks
         return total_chunks
 
     def vector_count(self) -> int:
-        """Return number of indexed chunks."""
-
         return self._ingestion_pipeline.count()
 
     def reset_index(self) -> None:
-        """Clear vector index."""
-
         self._ingestion_pipeline.reset()
 
     def _index_document(self, record: DocumentRecord, content: str) -> int:
         metadata = {
             "source": str(record.source_path),
             "filename": record.filename,
+            "tag": record.tag.value,
         }
         return self._ingestion_pipeline.index_document(
             document_id=record.id,

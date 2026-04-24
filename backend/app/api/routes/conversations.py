@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_conversation_service
-from app.api.schemas.chat import Citation, ConversationDetail, ConversationMessage
+from app.api.schemas.chat import Citation, ConversationDetail, ConversationMessage, UsageSchema
 from app.api.schemas.conversations import (
     ConversationCreateRequest,
     ConversationRenameRequest,
@@ -26,11 +26,7 @@ def list_recent_conversations(
     return [to_summary(convo) for convo in conversations]
 
 
-@router.post(
-    "/",
-    response_model=ConversationDetail,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/", response_model=ConversationDetail, status_code=status.HTTP_201_CREATED)
 def create_conversation(
     payload: ConversationCreateRequest,
     conversation_service: ConversationService = Depends(get_conversation_service),
@@ -39,10 +35,7 @@ def create_conversation(
     return to_detail(conversation)
 
 
-@router.get(
-    "/{conversation_id}",
-    response_model=ConversationDetail,
-)
+@router.get("/{conversation_id}", response_model=ConversationDetail)
 def get_conversation(
     conversation_id: UUID,
     conversation_service: ConversationService = Depends(get_conversation_service),
@@ -53,10 +46,7 @@ def get_conversation(
     return to_detail(conversation)
 
 
-@router.patch(
-    "/{conversation_id}",
-    response_model=ConversationDetail,
-)
+@router.patch("/{conversation_id}", response_model=ConversationDetail)
 def rename_conversation(
     conversation_id: UUID,
     payload: ConversationRenameRequest,
@@ -69,10 +59,7 @@ def rename_conversation(
     return to_detail(updated)
 
 
-@router.delete(
-    "/{conversation_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
+@router.delete("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_conversation(
     conversation_id: UUID,
     conversation_service: ConversationService = Depends(get_conversation_service),
@@ -102,7 +89,10 @@ def to_detail(conversation: Conversation) -> ConversationDetail:
                 role=msg.role.value,
                 content=msg.content,
                 created_at=msg.created_at,
-                citations=[Citation(**asdict(citation)) for citation in msg.citations] if msg.citations else None,
+                citations=[Citation(**asdict(c)) for c in msg.citations] if msg.citations else None,
+                usage=UsageSchema(**asdict(msg.usage)) if msg.usage else None,
+                latency_ms=msg.latency_ms,
+                mode=msg.mode,
             )
             for msg in conversation.messages
         ],

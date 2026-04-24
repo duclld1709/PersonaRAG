@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from chromadb.errors import InvalidArgumentError
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStoreRetriever
 from app.domain.interfaces.embedding_client import EmbeddingClient
 
 from app.domain.interfaces.vector_store import VectorStore
+
+logger = logging.getLogger(__name__)
 
 
 class ChromaVectorStore(VectorStore):
@@ -49,10 +53,27 @@ class ChromaVectorStore(VectorStore):
             else:
                 has_ids = False
                 break
-        if has_ids:
-            self._store.add_documents(docs, ids=ids)
-        else:
-            self._store.add_documents(docs)
+
+        def _insert() -> None:
+            if has_ids:
+                self._store.add_documents(docs, ids=ids)
+            else:
+                self._store.add_documents(docs)
+
+        try:
+            _insert()
+        except InvalidArgumentError as exc:
+            if "dimension" not in str(exc).lower():
+                raise
+            logger.warning(
+                "Chroma collection dimension mismatch (%s); resetting collection "
+                "at %s and retrying. Existing vectors were from a different "
+                "embedding model and cannot be reused.",
+                exc,
+                self._persist_directory,
+            )
+            self.reset()
+            _insert()
 
     def delete(self, *, ids: list[str] | None = None, filter: dict | None = None) -> None:
         self._store.delete(ids=ids, where=filter)

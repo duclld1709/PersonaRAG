@@ -1,117 +1,165 @@
-"""Shared application bootstrap utilities."""
+"""Application bootstrap — wires all OpenAI-backed services together."""
 
 from __future__ import annotations
 
+from logging import getLogger
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
 
 from app.core.config import Settings
-from app.ingestion.pipeline import DocumentIngestionPipeline
-from app.infrastructure.llm import GeminiChatClient, OpenAIChatClient
-from app.infrastructure.persistence import FileDocumentRepository, InMemoryConversationRepository
+from app.infrastructure.embeddings import OpenAIEmbeddingClient
+from app.infrastructure.llm import OpenAIChatClient, OpenAIUtilityClient
+from app.infrastructure.moderation import OpenAIModerationClient
+from app.infrastructure.persistence import (
+    SqliteConversationRepository,
+    SqliteDocumentRepository,
+    SqliteUsageRepository,
+    create_database,
+)
 from app.infrastructure.storage import LocalFileStorage
 from app.infrastructure.vectorstores import ChromaVectorStore
-from app.infrastructure.embeddings import (
-    HuggingFaceEmbeddingClient,
-    OpenAIEmbeddingClient,
+from app.ingestion.pipeline import DocumentIngestionPipeline
+from app.retrieval import (
+    BM25Index,
+    HybridRetriever,
+    LLMReranker,
+    QueryRouter,
+    SemanticResponseCache,
 )
-from app.domain.interfaces.embedding_client import EmbeddingClient
-from app.services import ChatService, ConversationService, DocumentService
+from app.services import ChatService, ConversationService, DocumentService, UsageService
+
+logger = getLogger(__name__)
 
 
 def bootstrap_dependencies(app: FastAPI, settings: Settings, *, force_reindex: bool = False) -> None:
-    embedding_model = _resolve_embedding_model(app, settings)
-    vector_store = ChromaVectorStore(settings.vectorstore_path, embedding_model)
+    """Build the full dependency graph and attach it to app.state."""
 
-    ingestion_pipeline = DocumentIngestionPipeline(settings=settings, vector_store=vector_store)
+    if not settings.openai_api_key:
+        logger.warning(
+            "OPENAI_API_KEY is not set — the backend will start but LLM calls will fail."
+        )
 
-    conversation_repository = _resolve_conversation_repository(app)
-    conversation_service = ConversationService(conversation_repository, settings)
+    # ---- Persistence layer ----
+    db = create_database(settings.database_url, base_dir=Path.cwd())
+    conversation_repository = SqliteConversationRepository(db)
+    document_repository = SqliteDocumentRepository(db)
+    usage_repository = SqliteUsageRepository(db)
 
-    metadata_index = settings.vectorstore_path.parent / "documents_index.json"
-    document_repository = FileDocumentRepository(metadata_index)
-    storage = LocalFileStorage(settings.docs_path)
-    document_service = DocumentService(document_repository, storage, ingestion_pipeline)
-
-    llm_client = _create_llm_client(settings)
-    chat_service = ChatService(
-        settings=settings,
-        conversation_service=conversation_service,
-        vector_store=vector_store,
-        llm_client=llm_client,
+    # ---- OpenAI clients ----
+    embedding_client = OpenAIEmbeddingClient(
+        model_name=settings.embedding_model, api_key=settings.openai_api_key
+    )
+    chat_client = OpenAIChatClient(
+        model_name=settings.chat_model,
+        api_key=settings.openai_api_key,
+        temperature=settings.llm_temperature,
+    )
+    utility_client = OpenAIUtilityClient(
+        model_name=settings.utility_model,
+        api_key=settings.openai_api_key,
+        temperature=0.0,
+    )
+    moderation_client = OpenAIModerationClient(
+        api_key=settings.openai_api_key, model=settings.moderation_model
     )
 
+    # ---- Vector store, BM25 index, ingestion ----
+    vector_store = ChromaVectorStore(settings.vectorstore_path, embedding_client)
+    bm25_index = BM25Index()
+
+    def _rebuild_bm25() -> None:
+        try:
+            docs = list(vector_store.get())
+            bm25_index.rebuild(docs)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("BM25 rebuild failed: %s", exc)
+
+    ingestion_pipeline = DocumentIngestionPipeline(settings=settings, vector_store=vector_store)
+    ingestion_pipeline.set_on_change(_rebuild_bm25)
+
+    storage = LocalFileStorage(settings.docs_path)
+    document_service = DocumentService(document_repository, storage, ingestion_pipeline)
+    conversation_service = ConversationService(conversation_repository, settings)
+
+    # ---- Retrieval components ----
+    retriever = HybridRetriever(
+        vector_store=vector_store,
+        bm25_index=bm25_index,
+        vector_weight=settings.hybrid_vector_weight,
+        bm25_weight=settings.hybrid_bm25_weight,
+        rrf_k=settings.rrf_k,
+    )
+    reranker = LLMReranker(utility_client)
+    router = QueryRouter(utility_client)
+    response_cache = SemanticResponseCache(
+        embedding_client, threshold=settings.semantic_cache_threshold
+    )
+
+    # ---- Warm / reindex, then seed BM25 ----
     if force_reindex:
         _reset_and_reindex(document_service)
     else:
         _warm_vector_store(document_service)
+    _rebuild_bm25()
+
+    chat_service = ChatService(
+        settings=settings,
+        conversation_service=conversation_service,
+        vector_store=vector_store,
+        chat_client=chat_client,
+        utility_client=utility_client,
+        embedding_client=embedding_client,
+        moderation_client=moderation_client,
+        retriever=retriever,
+        reranker=reranker,
+        router=router,
+        cache=response_cache,
+        usage_repository=usage_repository,
+    )
+    usage_service = UsageService(usage_repository)
 
     app.state.settings = settings
-    app.state.chat_service = chat_service
+    app.state.database = db
     app.state.conversation_service = conversation_service
     app.state.document_service = document_service
-    app.state.embedding_model = embedding_model
-    app.state.embedding_model_config = _embedding_config_for(settings)
+    app.state.chat_service = chat_service
+    app.state.usage_service = usage_service
+    app.state.chat_client = chat_client
+    app.state.utility_client = utility_client
+    app.state.embedding_client = embedding_client
+    app.state.vector_store = vector_store
+    app.state.bm25_index = bm25_index
+    app.state.response_cache = response_cache
 
 
 def refresh_llm_client(app: FastAPI, settings: Settings) -> None:
-    """Refresh only the LLM client on the existing chat service."""
+    """Rebuild the chat & utility clients in place when models change at runtime."""
 
-    chat_service: Any | None = getattr(app.state, "chat_service", None)
-    if not isinstance(chat_service, ChatService):
+    existing_chat: Any | None = getattr(app.state, "chat_service", None)
+    if existing_chat is None:
         bootstrap_dependencies(app, settings)
         return
 
-    chat_service.update_llm_client(_create_llm_client(settings))
-    app.state.chat_service = chat_service
-
-
-def _resolve_conversation_repository(app: FastAPI) -> InMemoryConversationRepository:
-    existing_service: Any | None = getattr(app.state, "conversation_service", None)
-    if existing_service is not None:
-        repository = getattr(existing_service, "_repository", None)
-        if isinstance(repository, InMemoryConversationRepository):
-            return repository
-    return InMemoryConversationRepository()
-
-
-def _resolve_embedding_model(app: FastAPI, settings: Settings) -> EmbeddingClient:
-    config = _embedding_config_for(settings)
-    cached_model: Any | None = getattr(app.state, "embedding_model", None)
-    cached_config = getattr(app.state, "embedding_model_config", None)
-
-    if cached_model is not None and cached_config == config:
-        return cached_model
-
-    embedding_model = _create_embedding_model(settings)
-    app.state.embedding_model = embedding_model
-    app.state.embedding_model_config = config
-    return embedding_model
-
-
-def _create_embedding_model(settings: Settings) -> EmbeddingClient:
-    if settings.embedding_provider == "huggingface":
-        return HuggingFaceEmbeddingClient(
-            model_name=settings.huggingface_embedding_model,
-            api_token=settings.huggingface_api_token,
-        )
-    return OpenAIEmbeddingClient(
-        model_name=settings.embedding_model,
+    chat_client = OpenAIChatClient(
+        model_name=settings.chat_model,
         api_key=settings.openai_api_key,
+        temperature=settings.llm_temperature,
+    )
+    utility_client = OpenAIUtilityClient(
+        model_name=settings.utility_model,
+        api_key=settings.openai_api_key,
+        temperature=0.0,
     )
 
+    existing_chat._chat = chat_client  # type: ignore[attr-defined]
+    existing_chat._utility = utility_client  # type: ignore[attr-defined]
+    existing_chat._reranker._client = utility_client  # type: ignore[attr-defined]
+    existing_chat._router._client = utility_client  # type: ignore[attr-defined]
 
-def _create_llm_client(settings: Settings) -> OpenAIChatClient | GeminiChatClient:
-    if settings.llm_provider == "gemini":
-        return GeminiChatClient(model_name=settings.gemini_chat_model, api_key=settings.gemini_api_key)
-    return OpenAIChatClient(model_name=settings.chat_model, api_key=settings.openai_api_key)
-
-
-def _embedding_config_for(settings: Settings) -> tuple[str, str]:
-    if settings.embedding_provider == "huggingface":
-        return (settings.embedding_provider, settings.huggingface_embedding_model)
-    return (settings.embedding_provider, settings.embedding_model)
+    app.state.chat_client = chat_client
+    app.state.utility_client = utility_client
 
 
 def _warm_vector_store(document_service: DocumentService) -> None:
@@ -129,3 +177,5 @@ def _reset_and_reindex(document_service: DocumentService) -> None:
     except FileNotFoundError:
         document_service.reset_index()
 
+
+__all__ = ["bootstrap_dependencies", "refresh_llm_client"]

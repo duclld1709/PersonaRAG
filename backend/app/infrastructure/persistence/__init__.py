@@ -1,6 +1,14 @@
-"""Persistence layer adapters."""
+"""Persistence layer adapters — SQLite-backed."""
 
-from .file_document_repository import FileDocumentRepository
-from .memory_conversation_repository import InMemoryConversationRepository
+from .database import Database, create_database
+from .sqlite_conversation_repository import SqliteConversationRepository
+from .sqlite_document_repository import SqliteDocumentRepository
+from .sqlite_usage_repository import SqliteUsageRepository
 
-__all__ = ["FileDocumentRepository", "InMemoryConversationRepository"]
+__all__ = [
+    "Database",
+    "create_database",
+    "SqliteConversationRepository",
+    "SqliteDocumentRepository",
+    "SqliteUsageRepository",
+]

@@ -1,6 +1,5 @@
-"""Embedding client implementations."""
+"""OpenAI embeddings adapter."""
 
-from .huggingface_embedding import HuggingFaceEmbeddingClient
 from .openai_embedding import OpenAIEmbeddingClient
 
-__all__ = ["OpenAIEmbeddingClient", "HuggingFaceEmbeddingClient"]
+__all__ = ["OpenAIEmbeddingClient"]

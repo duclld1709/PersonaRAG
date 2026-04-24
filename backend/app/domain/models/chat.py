@@ -25,6 +25,30 @@ class Citation:
     filename: str
     page: Optional[int] = None
     content: str = ""
+    document_id: Optional[str] = None
+    chunk_id: Optional[str] = None
+    score: Optional[float] = None
+    tag: Optional[str] = None
+
+
+@dataclass
+class TokenUsage:
+    """Token and cost accounting for a single LLM call or pipeline run."""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cached_tokens: int = 0
+    cost_usd: float = 0.0
+
+    def add(self, other: "TokenUsage") -> None:
+        self.prompt_tokens += other.prompt_tokens
+        self.completion_tokens += other.completion_tokens
+        self.cached_tokens += other.cached_tokens
+        self.cost_usd = round(self.cost_usd + other.cost_usd, 6)
+
+    @property
+    def total_tokens(self) -> int:
+        return self.prompt_tokens + self.completion_tokens
 
 
 @dataclass
@@ -35,6 +59,9 @@ class ChatMessage:
     content: str
     created_at: datetime = field(default_factory=datetime.utcnow)
     citations: Optional[List[Citation]] = None
+    usage: Optional[TokenUsage] = None
+    latency_ms: Optional[int] = None
+    mode: Optional[str] = None
 
 
 @dataclass

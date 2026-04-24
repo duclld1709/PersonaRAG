@@ -45,11 +45,20 @@ class ConversationService:
         *,
         citations: Sequence[Citation] | None = None,
     ) -> Conversation:
+        """Backward-compatible helper — prefer append_assistant for rich metadata."""
+
         message = ChatMessage(
             role=MessageRole.ASSISTANT,
             content=content,
             citations=list(citations) if citations else None,
         )
+        return self._repository.append_message(conversation_id, message)
+
+    def append_assistant(self, conversation_id: UUID, message: ChatMessage) -> Conversation:
+        """Append a fully-constructed assistant message (with usage + latency + mode)."""
+
+        if message.role != MessageRole.ASSISTANT:
+            raise ValueError("append_assistant requires role=ASSISTANT")
         return self._repository.append_message(conversation_id, message)
 
     def rename_conversation(self, conversation_id: UUID, title: str) -> Conversation:
@@ -59,41 +68,27 @@ class ConversationService:
         self._repository.delete(conversation_id)
 
     def _should_autoname(self, conversation: Conversation) -> bool:
-        """Determine whether the conversation should receive an automatic title."""
-
         default_title = "new conversation"
         current_title = (conversation.title or "").strip().lower()
-
         if current_title and current_title != default_title:
             return False
-
         if not conversation.messages:
             return False
-
         first_message = conversation.messages[0]
         if first_message.role != MessageRole.USER:
             return False
-
         return len(conversation.messages) == 1
 
     def _generate_title_from_message(self, content: str) -> str:
-        """Create a short title using the opening words of the user's message."""
-
         sanitized = re.sub(r"\s+", " ", content or "").strip()
         if not sanitized:
             return "New conversation"
-
-        max_words = 8
-        max_length = 60
-
+        max_words, max_length = 8, 60
         words = sanitized.split(" ")
-        selected_words = words[:max_words]
-        title = " ".join(selected_words)
-
+        selected = words[:max_words]
+        title = " ".join(selected)
         if len(title) > max_length:
             title = title[:max_length].rstrip()
-
         if len(words) > max_words or len(sanitized) > len(title):
             title = title.rstrip(".,;:!-— ") + "…"
-
         return title

@@ -1,5 +1,33 @@
 export type MessageRole = "user" | "assistant" | "system";
 
+export type ChatMode = "answer" | "explain" | "summarize" | "compare" | "outline" | "quiz";
+
+export type DocumentTag =
+  | "lecture_notes"
+  | "paper"
+  | "textbook"
+  | "assignment"
+  | "reference"
+  | "other";
+
+export interface Citation {
+  source: string;
+  filename: string;
+  page?: number | null;
+  content: string;
+  documentId?: string | null;
+  chunkId?: string | null;
+  score?: number | null;
+  tag?: string | null;
+}
+
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  cachedTokens: number;
+  costUsd: number;
+}
+
 export interface ConversationSummary {
   id: string;
   title: string;
@@ -12,6 +40,9 @@ export interface ConversationMessage {
   content: string;
   createdAt: string;
   citations?: Citation[];
+  usage?: TokenUsage | null;
+  latencyMs?: number | null;
+  mode?: string | null;
 }
 
 export interface ConversationDetail {
@@ -26,6 +57,8 @@ export interface DocumentItem {
   id: string;
   filename: string;
   summary?: string | null;
+  tag: DocumentTag;
+  chunkCount: number;
   uploadedAt: string;
   updatedAt: string;
 }
@@ -34,42 +67,30 @@ export interface DocumentDetail extends DocumentItem {
   content: string;
 }
 
-export interface Citation {
-  source: string;
-  filename: string;
-  page?: number | null;
-  content: string;
-}
-
-export type EmbeddingProvider = "openai" | "huggingface";
-export type LlmProvider = "openai" | "gemini";
-export type OpenAiModel = "gpt-4o" | "gpt-4o-mini";
-export type GeminiModel = "gemini-2.5-pro" | "gemini-2.5-flash" | "gemini-2.0-flash";
-
 export interface NumericRangeOption {
   min: number;
   max: number;
   step: number;
 }
 
-export interface AppSettings {
-  queryVariations: number;
-  retrievalK: number;
-  retrievalLambda: number;
-  embeddingProvider: EmbeddingProvider;
-  llmProvider: LlmProvider;
-  chatModel: OpenAiModel;
-  geminiChatModel: GeminiModel;
-}
-
 export interface AppSettingsOptions {
-  embeddingProviders: EmbeddingProvider[];
-  llmProviders: LlmProvider[];
-  openaiModels: OpenAiModel[];
-  geminiModels: GeminiModel[];
+  chatModels: string[];
+  utilityModels: string[];
   queryVariations: NumericRangeOption;
   retrievalK: NumericRangeOption;
-  retrievalLambda: NumericRangeOption;
+  rerankTopN: NumericRangeOption;
+  semanticCacheThreshold: NumericRangeOption;
+}
+
+export interface AppSettings {
+  chatModel: string;
+  utilityModel: string;
+  embeddingModel: string;
+  queryVariations: number;
+  retrievalK: number;
+  rerankTopN: number;
+  semanticCacheThreshold: number;
+  enableModeration: boolean;
 }
 
 export type SettingsResponse = AppSettings & { options: AppSettingsOptions };
@@ -77,14 +98,37 @@ export type SettingsResponse = AppSettings & { options: AppSettingsOptions };
 export type SettingsUpdatePayload = Partial<
   Pick<
     AppSettings,
+    | "chatModel"
+    | "utilityModel"
     | "queryVariations"
     | "retrievalK"
-    | "retrievalLambda"
-    | "embeddingProvider"
-    | "llmProvider"
-    | "chatModel"
-    | "geminiChatModel"
+    | "rerankTopN"
+    | "semanticCacheThreshold"
+    | "enableModeration"
   >
 >;
 
+export interface UsageModelBreakdown {
+  tokens: number;
+  costUsd: number;
+  events: number;
+}
 
+export interface UsageSummary {
+  totalEvents: number;
+  totalTokens: number;
+  totalCostUsd: number;
+  cacheHits: number;
+  avgLatencyMs: number;
+  byModel: Record<string, UsageModelBreakdown>;
+}
+
+export type StreamStatus =
+  | "routing"
+  | "retrieving"
+  | "reranking"
+  | "generating"
+  | "cache_hit"
+  | "chitchat"
+  | "refused"
+  | "done";

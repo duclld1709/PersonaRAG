@@ -1,48 +1,53 @@
-"""Application configuration powered by pydantic settings."""
+"""Application configuration — OpenAI-only, student-research-focused."""
+
+from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Optional
 
 from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Ensure .env values populate os.environ for downstream libraries (LangSmith, OpenAI SDK, etc.)
 load_dotenv()
 
 
 class Settings(BaseSettings):
     """Central application settings."""
 
-    app_name: str = "RAG Chatbot Backend"
+    app_name: str = "PersonaRAG — Research Assistant for Students"
     environment: str = Field(default="development", alias="APP_ENV")
     api_prefix: str = "/api/v1"
 
     docs_path: Path = Path("docs")
     vectorstore_path: Path = Path("db") / "chroma_db"
     logs_path: Path = Path("logs")
+    database_url: str = Field(default="sqlite:///./db/personarag.db", alias="DATABASE_URL")
 
     openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
-    cohere_api_key: Optional[str] = Field(default=None, alias="COHERE_API_KEY")
-    gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
-    huggingface_api_token: Optional[str] = Field(default=None, alias="HUGGINGFACE_API_TOKEN")
 
-    chat_model: str = Field(default="gpt-4o-mini")
-    gemini_chat_model: str = Field(default="gemini-2.5-flash")
-    embedding_model: str = Field(default="text-embedding-3-small")
-    huggingface_embedding_model: str = Field(default="AITeamVN/Vietnamese_Embedding_v2")
+    chat_model: str = Field(default="gpt-4.1", alias="OPENAI_CHAT_MODEL")
+    utility_model: str = Field(default="gpt-4.1-mini", alias="OPENAI_UTILITY_MODEL")
+    embedding_model: str = Field(default="text-embedding-3-large", alias="OPENAI_EMBEDDING_MODEL")
+    moderation_model: str = Field(default="omni-moderation-latest", alias="OPENAI_MODERATION_MODEL")
 
-    embedding_provider: Literal["openai", "huggingface"] = Field(default="openai")
-    llm_provider: Literal["openai", "gemini"] = Field(default="openai")
-
-    max_conversation_history: int = 5
-    query_variations: int = 3
-    retrieval_k: int = 3
-    retrieval_fetch_k: int = 10
-    retrieval_lambda: float = 0.5
+    max_conversation_history: int = 20
+    query_variations: int = Field(default=3, alias="QUERY_VARIATIONS")
+    retrieval_k: int = Field(default=5, alias="RETRIEVAL_K")
+    retrieval_fetch_k: int = Field(default=20, alias="RETRIEVAL_FETCH_K")
+    hybrid_bm25_weight: float = Field(default=0.4, alias="HYBRID_BM25_WEIGHT")
+    hybrid_vector_weight: float = Field(default=0.6, alias="HYBRID_VECTOR_WEIGHT")
+    rerank_top_n: int = Field(default=5, alias="RERANK_TOP_N")
+    semantic_cache_threshold: float = Field(default=0.95, alias="SEMANTIC_CACHE_THRESHOLD")
     rrf_k: int = 60
-    max_stream_tokens: int = 1024
+
+    chunk_size: int = Field(default=800, alias="CHUNK_SIZE")
+    chunk_overlap: int = Field(default=150, alias="CHUNK_OVERLAP")
+
+    enable_moderation: bool = Field(default=True, alias="ENABLE_MODERATION")
+    max_stream_tokens: int = 1500
+    llm_temperature: float = 0.2
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

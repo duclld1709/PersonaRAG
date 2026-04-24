@@ -15,7 +15,11 @@ def create_application() -> FastAPI:
     settings = get_settings()
     configure_logging(settings)
 
-    app = FastAPI(title=settings.app_name)
+    app = FastAPI(
+        title=settings.app_name,
+        description="Research Assistant for Students — hybrid RAG on OpenAI.",
+        version="1.0.0",
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

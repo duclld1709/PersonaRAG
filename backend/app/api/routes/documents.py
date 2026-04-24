@@ -11,17 +11,24 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from pypdf import PdfReader
 
 from app.api.dependencies import get_document_service
-from app.api.schemas.documents import DocumentDetailResponse, DocumentResponse, DocumentUpsertRequest
-from app.domain.models.document import DocumentRecord
+from app.api.schemas.documents import (
+    DocumentDetailResponse,
+    DocumentResponse,
+    DocumentTagLiteral,
+    DocumentUpsertRequest,
+)
+from app.domain.models.document import DocumentRecord, DocumentTag
 from app.services.document_service import DocumentService
 
 router = APIRouter()
 
-SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx"}
+SUPPORTED_EXTENSIONS = {".txt", ".pdf", ".docx", ".md"}
 
 
 @router.get("/", response_model=list[DocumentResponse])
-def list_documents(document_service: DocumentService = Depends(get_document_service)) -> list[DocumentResponse]:
+def list_documents(
+    document_service: DocumentService = Depends(get_document_service),
+) -> list[DocumentResponse]:
     documents = document_service.list_documents()
     return [to_response(doc) for doc in documents]
 
@@ -30,23 +37,30 @@ def list_documents(document_service: DocumentService = Depends(get_document_serv
 async def upload_document(
     file: UploadFile = File(...),
     filename: str | None = Form(None),
+    tag: DocumentTagLiteral = Form("other"),
     document_service: DocumentService = Depends(get_document_service),
 ) -> DocumentResponse:
     display_name = (filename or file.filename or "").strip()
     if not display_name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required.")
-
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required."
+        )
     try:
         content = await extract_text_from_upload(file)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process document.") from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process document.",
+        ) from exc
     finally:
         await file.close()
 
     try:
-        record = document_service.upsert_document(filename=display_name, content=content)
+        record = document_service.upsert_document(
+            filename=display_name, content=content, tag=DocumentTag(tag)
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -67,6 +81,7 @@ def update_document(
             filename=payload.filename,
             content=payload.content,
             document_id=document_id,
+            tag=DocumentTag(payload.tag),
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -97,14 +112,14 @@ def delete_document(
 
 
 def to_response(
-    record: DocumentRecord,
-    *,
-    content: str | None = None,
+    record: DocumentRecord, *, content: str | None = None
 ) -> DocumentResponse | DocumentDetailResponse:
     payload = {
         "id": record.id,
         "filename": record.filename,
         "summary": record.summary,
+        "tag": record.tag.value,
+        "chunk_count": record.chunk_count,
         "uploaded_at": record.uploaded_at,
         "updated_at": record.updated_at,
     }
@@ -116,13 +131,13 @@ def to_response(
 async def extract_text_from_upload(upload: UploadFile) -> str:
     extension = Path(upload.filename or "").suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
-        raise ValueError("Unsupported file type. Allowed extensions: .txt, .pdf, .docx.")
+        raise ValueError("Unsupported file type. Allowed extensions: .txt, .pdf, .docx, .md.")
 
     raw_bytes = await upload.read()
     if not raw_bytes:
         raise ValueError("Uploaded file is empty.")
 
-    if extension == ".txt":
+    if extension in {".txt", ".md"}:
         try:
             text = raw_bytes.decode("utf-8")
         except UnicodeDecodeError:
@@ -149,5 +164,4 @@ async def extract_text_from_upload(upload: UploadFile) -> str:
 
     if not content:
         raise ValueError("No readable text content found in the uploaded file.")
-
     return content

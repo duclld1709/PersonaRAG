@@ -1,0 +1,1 @@
+"""PersonaRAG offline evaluation harness."""
