@@ -13,7 +13,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
@@ -83,6 +82,7 @@ class Database:
         self._local = threading.local()
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            _migrate(conn)
 
     def _connect(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -110,6 +110,16 @@ class Database:
             raise
         finally:
             cur.close()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Additive migrations for databases created by older versions."""
+
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(usage_events)")}
+    if "request_id" not in columns:
+        # One chat request now produces one usage row per model (chat, utility,
+        # embeddings); request_id groups them.
+        conn.execute("ALTER TABLE usage_events ADD COLUMN request_id TEXT")
 
 
 def create_database(database_url: str, base_dir: Path) -> Database:

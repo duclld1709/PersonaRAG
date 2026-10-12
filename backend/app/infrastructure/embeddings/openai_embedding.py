@@ -7,6 +7,7 @@ from typing import Iterable, Sequence
 
 from langchain_openai import OpenAIEmbeddings
 
+from app.core import usage as usage_tracking
 from app.domain.interfaces.embedding_client import EmbeddingClient
 from app.domain.models.chat import TokenUsage
 from app.infrastructure.llm.pricing import estimate_embedding_cost
@@ -49,6 +50,7 @@ class OpenAIEmbeddingClient(EmbeddingClient):
         with self._lock:
             self._cumulative.prompt_tokens += tokens
             self._cumulative.cost_usd = round(self._cumulative.cost_usd + cost, 6)
+        usage_tracking.record(self._model_name, TokenUsage(prompt_tokens=tokens, cost_usd=cost))
 
 
 def _approx_tokens(text: str) -> int:

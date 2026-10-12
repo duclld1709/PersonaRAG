@@ -40,7 +40,7 @@ class TokenUsage:
     cached_tokens: int = 0
     cost_usd: float = 0.0
 
-    def add(self, other: "TokenUsage") -> None:
+    def add(self, other: TokenUsage) -> None:
         self.prompt_tokens += other.prompt_tokens
         self.completion_tokens += other.completion_tokens
         self.cached_tokens += other.cached_tokens

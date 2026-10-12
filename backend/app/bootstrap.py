@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from typing import Any
@@ -33,13 +34,43 @@ from app.services import ChatService, ConversationService, DocumentService, Usag
 logger = getLogger(__name__)
 
 
-def bootstrap_dependencies(app: FastAPI, settings: Settings, *, force_reindex: bool = False) -> None:
+@dataclass
+class Providers:
+    """External model clients. Tests and the offline eval inject fakes here."""
+
+    embedding: Any
+    chat: Any
+    utility: Any
+    moderation: Any
+
+
+def openai_providers(settings: Settings) -> Providers:
+    if not settings.openai_api_key:
+        logger.warning("OPENAI_API_KEY is not set: the backend will start but LLM calls will fail.")
+    return Providers(
+        embedding=OpenAIEmbeddingClient(model_name=settings.embedding_model, api_key=settings.openai_api_key),
+        chat=_chat_client(settings),
+        utility=_utility_client(settings),
+        moderation=OpenAIModerationClient(api_key=settings.openai_api_key, model=settings.moderation_model),
+    )
+
+
+def _chat_client(settings: Settings) -> OpenAIChatClient:
+    return OpenAIChatClient(
+        model_name=settings.chat_model, api_key=settings.openai_api_key, temperature=settings.llm_temperature
+    )
+
+
+def _utility_client(settings: Settings) -> OpenAIUtilityClient:
+    return OpenAIUtilityClient(model_name=settings.utility_model, api_key=settings.openai_api_key, temperature=0.0)
+
+
+def bootstrap_dependencies(
+    app: FastAPI, settings: Settings, *, force_reindex: bool = False, providers: Providers | None = None
+) -> None:
     """Build the full dependency graph and attach it to app.state."""
 
-    if not settings.openai_api_key:
-        logger.warning(
-            "OPENAI_API_KEY is not set — the backend will start but LLM calls will fail."
-        )
+    providers = providers or openai_providers(settings)
 
     # ---- Persistence layer ----
     db = create_database(settings.database_url, base_dir=Path.cwd())
@@ -47,37 +78,27 @@ def bootstrap_dependencies(app: FastAPI, settings: Settings, *, force_reindex: b
     document_repository = SqliteDocumentRepository(db)
     usage_repository = SqliteUsageRepository(db)
 
-    # ---- OpenAI clients ----
-    embedding_client = OpenAIEmbeddingClient(
-        model_name=settings.embedding_model, api_key=settings.openai_api_key
-    )
-    chat_client = OpenAIChatClient(
-        model_name=settings.chat_model,
-        api_key=settings.openai_api_key,
-        temperature=settings.llm_temperature,
-    )
-    utility_client = OpenAIUtilityClient(
-        model_name=settings.utility_model,
-        api_key=settings.openai_api_key,
-        temperature=0.0,
-    )
-    moderation_client = OpenAIModerationClient(
-        api_key=settings.openai_api_key, model=settings.moderation_model
-    )
+    embedding_client = providers.embedding
+    chat_client = providers.chat
+    utility_client = providers.utility
+    moderation_client = providers.moderation
 
     # ---- Vector store, BM25 index, ingestion ----
     vector_store = ChromaVectorStore(settings.vectorstore_path, embedding_client)
     bm25_index = BM25Index()
+    # Threshold is read per lookup so the settings panel takes effect immediately.
+    response_cache = SemanticResponseCache(embedding_client, threshold=lambda: settings.semantic_cache_threshold)
 
-    def _rebuild_bm25() -> None:
+    def _on_corpus_change() -> None:
+        # Cached answers may cite chunks that just changed or disappeared.
+        response_cache.clear()
         try:
-            docs = list(vector_store.get())
-            bm25_index.rebuild(docs)
+            bm25_index.rebuild(list(vector_store.get()))
         except Exception as exc:  # noqa: BLE001
             logger.warning("BM25 rebuild failed: %s", exc)
 
     ingestion_pipeline = DocumentIngestionPipeline(settings=settings, vector_store=vector_store)
-    ingestion_pipeline.set_on_change(_rebuild_bm25)
+    ingestion_pipeline.set_on_change(_on_corpus_change)
 
     storage = LocalFileStorage(settings.docs_path)
     document_service = DocumentService(document_repository, storage, ingestion_pipeline)
@@ -90,27 +111,23 @@ def bootstrap_dependencies(app: FastAPI, settings: Settings, *, force_reindex: b
         vector_weight=settings.hybrid_vector_weight,
         bm25_weight=settings.hybrid_bm25_weight,
         rrf_k=settings.rrf_k,
+        vector_search=settings.vector_search,
     )
     reranker = LLMReranker(utility_client)
     router = QueryRouter(utility_client)
-    response_cache = SemanticResponseCache(
-        embedding_client, threshold=settings.semantic_cache_threshold
-    )
 
     # ---- Warm / reindex, then seed BM25 ----
     if force_reindex:
         _reset_and_reindex(document_service)
     else:
         _warm_vector_store(document_service)
-    _rebuild_bm25()
+    _on_corpus_change()
 
     chat_service = ChatService(
         settings=settings,
         conversation_service=conversation_service,
-        vector_store=vector_store,
         chat_client=chat_client,
         utility_client=utility_client,
-        embedding_client=embedding_client,
         moderation_client=moderation_client,
         retriever=retriever,
         reranker=reranker,
@@ -135,29 +152,14 @@ def bootstrap_dependencies(app: FastAPI, settings: Settings, *, force_reindex: b
 
 
 def refresh_llm_client(app: FastAPI, settings: Settings) -> None:
-    """Rebuild the chat & utility clients in place when models change at runtime."""
+    """Rebuild the chat & utility clients when the models change at runtime."""
 
-    existing_chat: Any | None = getattr(app.state, "chat_service", None)
-    if existing_chat is None:
+    chat_service: ChatService | None = getattr(app.state, "chat_service", None)
+    if chat_service is None:
         bootstrap_dependencies(app, settings)
         return
-
-    chat_client = OpenAIChatClient(
-        model_name=settings.chat_model,
-        api_key=settings.openai_api_key,
-        temperature=settings.llm_temperature,
-    )
-    utility_client = OpenAIUtilityClient(
-        model_name=settings.utility_model,
-        api_key=settings.openai_api_key,
-        temperature=0.0,
-    )
-
-    existing_chat._chat = chat_client  # type: ignore[attr-defined]
-    existing_chat._utility = utility_client  # type: ignore[attr-defined]
-    existing_chat._reranker._client = utility_client  # type: ignore[attr-defined]
-    existing_chat._router._client = utility_client  # type: ignore[attr-defined]
-
+    chat_client, utility_client = _chat_client(settings), _utility_client(settings)
+    chat_service.set_clients(chat_client=chat_client, utility_client=utility_client)
     app.state.chat_client = chat_client
     app.state.utility_client = utility_client
 
@@ -178,4 +180,4 @@ def _reset_and_reindex(document_service: DocumentService) -> None:
         document_service.reset_index()
 
 
-__all__ = ["bootstrap_dependencies", "refresh_llm_client"]
+__all__ = ["Providers", "bootstrap_dependencies", "openai_providers", "refresh_llm_client"]

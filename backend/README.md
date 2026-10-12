@@ -16,7 +16,6 @@ python -m venv .venv
 . .venv/Scripts/activate                 # PowerShell: .venv\Scripts\Activate.ps1
 pip install -e .                         # runtime only
 pip install -e .[dev]                    # + linting/test tooling
-pip install -e .[eval]                   # + eval harness (ragas, pandas)
 cp .env.example .env                     # paste your key
 ```
 
@@ -29,17 +28,23 @@ uvicorn app.main:app --reload
 - REST + SSE: `http://localhost:8000/api/v1`
 - OpenAPI docs: `http://localhost:8000/docs`
 
-## Evaluation
-
-Ablation harness over a golden Q&A set with four pipeline configs (baseline → full):
+## Tests
 
 ```bash
-python -m eval.run_eval                  # live, requires API key
-python -m eval.run_eval --dry-run        # deterministic placeholder for CI
-python -m eval.run_eval --configs full   # single config
+pip install -e .[dev]
+pytest                                   # ~3 s, no network: offline embeddings/LLM fakes
+ruff check . && ruff format --check .
 ```
 
-Per-config results land in `eval/reports/<config>.json`; the Markdown summary lands in `eval/reports/summary.md`.
+## Evaluation
+
+See [`eval/README.md`](eval/README.md). In short:
+
+```bash
+python -m eval.fetch_corpus              # once: pinned, checksummed textbook corpus
+python -m eval.run all                   # retrieval ablation + end-to-end answers (needs OPENAI_API_KEY)
+python -m eval.run all --offline         # no key: BM25 is real, the rest is a harness smoke test
+```
 
 ## Endpoints
 

@@ -88,6 +88,7 @@ export type StreamHandlers = {
     latencyMs: number;
     cacheHit: boolean;
     mode?: string;
+    costBreakdown: Record<string, number>;
   }) => void;
   onError?: (message: string) => void;
   onComplete?: () => void;
@@ -147,6 +148,7 @@ export async function streamChat(
           latencyMs: parsed.latency_ms ?? 0,
           cacheHit: Boolean(parsed.cache_hit),
           mode: parsed.mode,
+          costBreakdown: parsed.cost_breakdown ?? {},
         });
       }
     } catch {
@@ -313,6 +315,7 @@ type StreamPayloadAPI = {
   mode?: string;
   intent?: string;
   error?: string;
+  cost_breakdown?: Record<string, number>;
 };
 
 type ConversationSummaryAPI = {

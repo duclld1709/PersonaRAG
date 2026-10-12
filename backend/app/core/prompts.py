@@ -34,7 +34,7 @@ RESEARCH_ASSISTANT_SYSTEM_PROMPT = dedent(
 
     ## Core rules (non-negotiable)
     1. **Never invent facts or citations.** If the excerpts do not support the
-       answer, reply: "I could not find this in your materials — try uploading
+       answer, reply: "I could not find this in your materials. Try uploading
        a source that covers it." Do not fall back to prior knowledge.
     2. **Cite inline** using bracketed numbers like `[1]`, `[2]` that map 1:1
        to the order of excerpts you received. Cite the single most relevant
@@ -127,27 +127,20 @@ def build_user_prompt(
     if not excerpts:
         excerpts_block = "(No excerpts retrieved.)"
     else:
-        excerpts_block = "\n\n".join(
-            f"[{index}] {excerpt.strip()}"
-            for index, excerpt in enumerate(excerpts, start=1)
-        )
+        excerpts_block = "\n\n".join(f"[{index}] {excerpt.strip()}" for index, excerpt in enumerate(excerpts, start=1))
 
     mode_directive = MODE_INSTRUCTIONS.get(mode, MODE_INSTRUCTIONS[ChatMode.ANSWER])
 
-    return dedent(
-        f"""
-        ## Mode
-        {mode_directive}
-
-        ## Student question
-        {question.strip()}
-
-        ## Excerpts from the student's materials
-        {excerpts_block}
-
-        Respond now, following the rules in the system prompt.
-        """
-    ).strip()
+    # Assembled explicitly: dedent() over an f-string with multi-line excerpts is a
+    # no-op (the excerpt lines are not indented), which left 8-space indents in v1 prompts.
+    return "\n\n".join(
+        [
+            f"## Mode\n{mode_directive}",
+            f"## Student question\n{question.strip()}",
+            f"## Excerpts from the student's materials\n{excerpts_block}",
+            "Respond now, following the rules in the system prompt.",
+        ]
+    )
 
 
 QUERY_REWRITE_SYSTEM_PROMPT = dedent(
@@ -217,3 +210,11 @@ REFUSAL_MESSAGE = (
     "build an **outline**, or generate **study questions** from your "
     "own notes instead."
 )
+
+
+# Exact phrase the system prompt asks for when the excerpts do not answer the question.
+# Used to keep such answers out of the semantic cache and to score out-of-scope
+# questions in the eval harness.
+NOT_FOUND_PHRASE = "I could not find this in your materials"
+
+MODERATION_MESSAGE = "Your question was flagged by content moderation. Please rephrase it."

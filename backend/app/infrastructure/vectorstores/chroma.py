@@ -10,8 +10,8 @@ from chromadb.errors import InvalidArgumentError
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStoreRetriever
-from app.domain.interfaces.embedding_client import EmbeddingClient
 
+from app.domain.interfaces.embedding_client import EmbeddingClient
 from app.domain.interfaces.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ class ChromaVectorStore(VectorStore):
         ids = raw.get("ids") or []
 
         results: list[Document] = []
-        for chunk_id, metadata, content in zip(ids, metadatas, documents):
+        for chunk_id, metadata, content in zip(ids, metadatas, documents, strict=True):
             metadata = metadata or {}
             if "chunk_id" not in metadata and chunk_id:
                 metadata = {**metadata, "chunk_id": chunk_id}

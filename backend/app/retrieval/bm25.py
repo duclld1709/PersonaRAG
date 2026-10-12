@@ -15,7 +15,6 @@ from typing import Sequence
 from langchain_core.documents import Document
 from rank_bm25 import BM25Okapi
 
-
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
 
@@ -57,7 +56,7 @@ class BM25Index:
                 return []
             scores = self._bm25.get_scores(tokens)
             ranked = sorted(
-                zip(self._entries, scores),
+                zip(self._entries, scores, strict=True),
                 key=lambda item: float(item[1]),
                 reverse=True,
             )

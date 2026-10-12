@@ -33,12 +33,16 @@ class HybridRetriever:
         vector_weight: float = 0.6,
         bm25_weight: float = 0.4,
         rrf_k: int = 60,
+        vector_search: str = "mmr",
     ) -> None:
+        if vector_search not in ("mmr", "similarity"):
+            raise ValueError("vector_search must be 'mmr' or 'similarity'")
         self._vector_store = vector_store
         self._bm25 = bm25_index
         self._vector_weight = vector_weight
         self._bm25_weight = bm25_weight
         self._rrf_k = rrf_k
+        self._vector_search = vector_search
 
     def retrieve(self, queries: Iterable[str], *, k: int, fetch_k: int) -> list[RetrievalHit]:
         """Retrieve and fuse hits across several query variations.
@@ -53,9 +57,13 @@ class HybridRetriever:
         source_map: defaultdict[str, set[str]] = defaultdict(set)
         doc_lookup: dict[str, Document] = {}
 
-        retriever = self._vector_store.as_retriever(
-            search_type="mmr",
-            search_kwargs={"k": k, "fetch_k": fetch_k, "lambda_mult": 0.5},
+        search_kwargs = {"k": k}
+        if self._vector_search == "mmr":
+            search_kwargs |= {"fetch_k": fetch_k, "lambda_mult": 0.5}
+        retriever = (
+            self._vector_store.as_retriever(search_type=self._vector_search, search_kwargs=search_kwargs)
+            if self._vector_weight > 0
+            else None
         )
 
         for query in queries:
@@ -63,14 +71,16 @@ class HybridRetriever:
             if not query:
                 continue
 
-            vector_hits: Sequence[Document] = retriever.invoke(query) or []
+            # A zero weight disables a branch entirely (no embedding call), which is
+            # how the eval measures BM25-only and dense-only retrieval.
+            vector_hits: Sequence[Document] = (retriever.invoke(query) or []) if retriever else []
             for position, doc in enumerate(vector_hits, start=1):
                 key = self._key(doc)
                 doc_lookup[key] = doc
                 per_rank_score[key] += self._vector_weight / (self._rrf_k + position)
                 source_map[key].add("vector")
 
-            bm25_hits = self._bm25.search(query, top_k=k)
+            bm25_hits = self._bm25.search(query, top_k=k) if self._bm25_weight > 0 else []
             for position, (doc, _score) in enumerate(bm25_hits, start=1):
                 key = self._key(doc)
                 doc_lookup[key] = doc
