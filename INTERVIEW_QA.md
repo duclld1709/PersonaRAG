@@ -27,6 +27,8 @@ kiểm tra điều gì, gợi ý trả lời, và câu hỏi nối tiếp nên c
   `text-embedding-3-large`, moderation), Chroma, SQLite (WAL), frontend Next.js 14 + Tailwind.
 - **Evaluation:** golden set 81 câu có **trích dẫn bằng chứng nguyên văn**, corpus 400 chunk, metric
   IR kèm bootstrap CI, LLM judge, CI chặn merge nếu BM25 Hit@5 < 0.80.
+- **Kết quả (chạy thật với `gpt-6-luna`):** pipeline đầy đủ đạt Hit@5 100%, MRR 0.898 (dense baseline:
+  89.3%, 0.702) và correctness 100%, không từ chối nhầm câu nào (dense: 95.3%).
 
 ---
 
@@ -196,7 +198,25 @@ pipeline sang async. Threadpool là thay đổi nhỏ nhất mà sửa đúng g�
 - **Metric:** Hit@k, Recall@k (tỉ lệ bằng chứng được phủ, quan trọng với câu hỏi nhiều ý), MRR, nDCG@k.
 - **Bootstrap CI 95%:** với 75 câu in-scope, khoảng tin cậy rộng khoảng ±8 điểm, nên chênh lệch nhỏ hơn
   mức đó **không chứng minh** cấu hình nào tốt hơn.
-- Kết quả đã đo: BM25 Hit@5 = **85.3% [77.3, 93.3]**, MRR 0.707.
+- **Kết quả đã đo** (run `20261021-223801`, k = 5, 75 câu in-scope):
+
+  | cấu hình | Hit@5 | MRR |
+  |---|---|---|
+  | BM25 | 85.3 [77.3, 93.3] | 0.707 |
+  | dense | 89.3 [82.7, 96.0] | 0.702 |
+  | dense + MMR | 77.3 [68.0, 86.7] | 0.668 |
+  | hybrid | 89.3 [82.7, 96.0] | 0.744 |
+  | hybrid + multi-query | 92.0 [85.3, 97.3] | 0.746 |
+  | hybrid + rerank | 93.3 [88.0, 98.7] | 0.839 |
+  | full | **100.0** [100.0, 100.0] | **0.898** |
+
+- **Cách đọc kết quả (nên nói khi phỏng vấn):**
+  - Reranker là đòn bẩy lớn nhất cho thứ hạng: MRR 0.744 → 0.839.
+  - Hybrid và multi-query **khi đứng riêng** chỉ thay đổi nhỏ hơn CI, nên trên corpus này chưa chứng
+    minh được là có ích. Đây là kết luận trung thực, không phải điểm yếu.
+  - MMR đứng riêng **làm hại**: Hit@5 giảm 12 điểm, vì nó đẩy các chunk gần trùng (chứa bằng chứng) ra
+    khỏi top 5. Nó chỉ có lợi trong `full`, khi multi-query và reranker kéo các chunk đó trở lại.
+  - Đổi lại, `full` chậm hơn: p50 retrieval 7.0 s so với 0.33 s của dense.
 
 ---
 
@@ -217,8 +237,25 @@ pipeline sang async. Threadpool là thay đổi nhỏ nhất mà sửa đúng g�
   xuất: lấy khoảng 40 câu, gán nhãn tay (không biết cấu hình nào sinh ra), báo **Cohen's κ** cạnh điểm
   judge. Verdict từng claim được lưu trong JSONL để làm việc này.
 - v1 dùng heuristic trùng từ nhưng gắn nhãn "RAGAS-compatible", và số trong README v1 đến từ generator
-  `--dry-run` giả. Tôi đã **gỡ toàn bộ số đó**. Số answer quality chỉ được công bố sau khi chạy thật
-  với API key.
+  `--dry-run` giả. Tôi đã **gỡ toàn bộ số đó** và chỉ công bố số từ lần chạy thật.
+- **Kết quả đã đo** (run `20261021-234059`, `gpt-6-luna` cho chat, utility và judge):
+
+  | cấu hình | faithfulness | citation precision | correctness | false abstain | p50 latency |
+  |---|---|---|---|---|---|
+  | dense | 95.8 | 95.2 | 95.3 [90.7, 98.7] | 1.3 | 4.8 s |
+  | hybrid | 94.7 | 94.5 | 96.7 | 2.7 | 5.0 s |
+  | hybrid + rerank | 95.3 | 95.2 | 96.0 | 2.7 | 7.3 s |
+  | full | **98.0** | **97.0** | **100.0** [100.0, 100.0] | **0.0** | 11.2 s |
+
+  Câu out-of-scope (4/4) và refusal (2/2) đều đúng ở mọi cấu hình.
+- **Phân tích lỗi:** mọi lỗi correctness ngoài `full` rơi vào cùng 5 câu, và ở cả 5 câu bằng chứng
+  **không lọt vào prompt** (context recall 0–33%). Tức là vấn đề nằm ở retrieval, không phải ở bước
+  sinh. `full` lấy được bằng chứng và trả lời đúng cả 5.
+- **Tự nêu hạn chế trước khi bị hỏi:**
+  - Cùng một model vừa sinh vừa chấm, nên có thể có self-preference bias. Chưa đo Cohen's κ với người.
+  - Chi phí chưa đo được: `gpt-6-luna` chưa có trong bảng giá `pricing.py`, nên lời gọi LLM bị tính $0.
+  - Quy tắc chấm out-of-scope coi nhánh chitchat là đúng. "What is the capital of France?" đi vào
+    chitchat và được trả lời "Paris" từ kiến thức của model, nên quy tắc này hơi dễ dãi.
 
 ---
 
@@ -308,8 +345,9 @@ một tập tấn công. Dự án chưa có per-user auth và cô lập tài li�
 **Muốn kiểm tra:** tự nhận thức, định hướng.
 
 **Gợi ý trả lời:**
-1. **Chưa có ablation đầy đủ với API thật.** Mới có BM25. Cần chạy dense, hybrid, +multi-query, +rerank,
-   full để biết mỗi kỹ thuật **có thực sự giúp** không, kèm Cohen's κ giữa judge và người.
+1. **Độ tin cậy của judge và chi phí.** Ablation đã chạy thật, nhưng judge cùng model với generator và
+   chưa có Cohen's κ với nhãn người. Cần thêm judge khác họ model, bổ sung giá `gpt-6-luna` và lưu
+   token theo từng câu để báo cáo chi phí thật, rồi chạy lại với model mặc định `gpt-4.1`.
 2. **Golden set nhỏ, do tác giả viết, tiếng Anh.** Cần câu hỏi thật của sinh viên, và tài liệu tiếng
    Việt (BM25 hiện tách token bằng `\w+`, nên với tiếng Việt cần tách từ, ví dụ pyvi; embedding cần hỗ
    trợ đa ngôn ngữ).
@@ -333,3 +371,6 @@ một tập tấn công. Dự án chưa có per-user auth và cô lập tài li�
 | Sáu mode trả lời? | Answer, Explain, Summarize, Compare, Outline, Quiz |
 | Định dạng output có cấu trúc? | `response_format = json_schema` (Pydantic) cho expansion, rerank, judge |
 | Observability? | Usage tracker theo stage, endpoint `/api/v1/usage/summary`, LangSmith (tuỳ chọn) |
+| Kết quả retrieval? | full: Hit@5 100%, MRR 0.898; dense: 89.3%, 0.702; BM25: 85.3%, 0.707 |
+| Kết quả câu trả lời? | full: correctness 100%, faithfulness 98.0%, 0 từ chối nhầm; p50 11.2 s |
+| Kỹ thuật giúp nhiều nhất? | Reranker (MRR 0.744 → 0.839). MMR đứng riêng làm giảm Hit@5 12 điểm |
