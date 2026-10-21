@@ -33,6 +33,7 @@ class OpenAIChatClient(LLMClient):
         *,
         temperature: float = 0.2,
         max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         self._model_name = model_name
         self._client = ChatOpenAI(
@@ -41,6 +42,7 @@ class OpenAIChatClient(LLMClient):
             temperature=temperature,
             max_tokens=max_tokens,
             stream_usage=True,
+            reasoning_effort=reasoning_effort,
         )
         self._cumulative = TokenUsage()
         self._lock = Lock()

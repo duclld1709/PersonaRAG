@@ -41,7 +41,7 @@ def main(argv=None) -> int:
     p.add_argument("--offline", action="store_true", help="no API calls (smoke test; only BM25 is a real measurement)")
     p.add_argument("--k", type=int, default=5)
     p.add_argument("--limit", type=int, help="only the first N golden questions")
-    p.add_argument("--judge-model", default="gpt-4.1")
+    p.add_argument("--judge-model", default="gpt-6-luna")
     p.add_argument("--min-hit-rate", type=float, help="exit 1 if any retrieval config's Hit@k is below this")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.WARNING)
@@ -58,7 +58,13 @@ def main(argv=None) -> int:
             print("OPENAI_API_KEY is not set (use --offline for a smoke test)", file=sys.stderr)
             return 2
         make_providers = lambda: openai_providers(settings)  # noqa: E731
-        judge = OpenAIChatClient(args.judge_model, api_key=settings.openai_api_key, temperature=0.0)
+        # The judge endpoint/model may only accept the default temperature.
+        judge = OpenAIChatClient(
+            args.judge_model,
+            api_key=settings.openai_api_key,
+            temperature=1.0,
+            reasoning_effort="none" if args.judge_model.lower() == "gpt-6-luna" else None,
+        )
 
     clean_workdir()
     stages = ["retrieval", "generation"] if args.stage == "all" else [args.stage]

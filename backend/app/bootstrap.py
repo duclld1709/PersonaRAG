@@ -57,12 +57,24 @@ def openai_providers(settings: Settings) -> Providers:
 
 def _chat_client(settings: Settings) -> OpenAIChatClient:
     return OpenAIChatClient(
-        model_name=settings.chat_model, api_key=settings.openai_api_key, temperature=settings.llm_temperature
+        model_name=settings.chat_model,
+        api_key=settings.openai_api_key,
+        temperature=settings.llm_temperature,
+        reasoning_effort=_reasoning_effort_for_model(settings.chat_model),
     )
 
 
 def _utility_client(settings: Settings) -> OpenAIUtilityClient:
-    return OpenAIUtilityClient(model_name=settings.utility_model, api_key=settings.openai_api_key, temperature=0.0)
+    return OpenAIUtilityClient(
+        model_name=settings.utility_model,
+        api_key=settings.openai_api_key,
+        temperature=0.0,
+        reasoning_effort=_reasoning_effort_for_model(settings.utility_model),
+    )
+
+
+def _reasoning_effort_for_model(model_name: str) -> str | None:
+    return "none" if model_name.lower() == "gpt-6-luna" else None
 
 
 def bootstrap_dependencies(
