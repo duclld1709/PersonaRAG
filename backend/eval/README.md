@@ -74,6 +74,27 @@ so its numbers are real measurements, and CI gates on them
 (`--configs bm25 --min-hit-rate 0.80`). Every other offline number only shows that the
 harness runs, and the report says so.
 
+## Latest results
+
+| run | stage | models |
+|---|---|---|
+| [`20261021-223801`](reports/runs/20261021-223801/summary.md) | retrieval, all 8 configs | `gpt-6-luna` (utility), `text-embedding-3-large` |
+| [`20261021-234059`](reports/runs/20261021-234059/summary.md) | answers: dense, hybrid, hybrid+rerank, full | `gpt-6-luna` (chat, utility, judge) |
+
+Headline: `full` reaches Hit@5 100% [100, 100] and MRR 0.898 [0.85, 0.94] (dense: 89.3% and
+0.702), and answer correctness 100% [100, 100] with no false abstentions (dense: 95.3%).
+The analysis and caveats are in the [top-level README](../../README.md#evaluation-honest-numbers).
+
+The retrieval run was committed without `summary.md` / `summary.json`; they were rebuilt
+from its per-question JSONL with the same `report.summarise_retrieval` and `report.markdown`
+the runner uses. The `meta.json` of both runs records commit `719df3b`, but
+they ran with the uncommitted `reasoning_effort` change that was committed afterwards in
+`b95a216`.
+
+Two gaps in these runs: `gpt-6-luna` has no entry in `app/infrastructure/llm/pricing.py`,
+so LLM calls were priced at $0 and the cost columns only cover embeddings; and the same
+model generated and judged the answers.
+
 ## Judge reliability
 
 An LLM judge has biases (verbosity, self-preference), so judge scores should not be

@@ -27,25 +27,80 @@ It is also a full-stack engineering portfolio project: the usual quality levers 
 > **v2 correction.** The v1 README showed a results table (faithfulness 0.72 → 0.88,
 > "−10% cost", and so on). Those numbers came from the harness's `--dry-run` placeholder
 > generator, not from a model run. They have been removed. The harness was rebuilt so that
-> every number below can be traced to a run in [`backend/eval/reports/runs/`](backend/eval/reports/runs/) (BM25 baseline: [`20261012-033119-offline`](backend/eval/reports/runs/20261012-033119-offline/summary.md)).
+> every number below can be traced to a run in [`backend/eval/reports/runs/`](backend/eval/reports/runs/):
+> retrieval [`20261021-223801`](backend/eval/reports/runs/20261021-223801/summary.md),
+> answers [`20261021-234059`](backend/eval/reports/runs/20261021-234059/summary.md).
 
 **Setup.** 400 chunks from 2 lecture notes plus 14 sections of *Dive into Deep Learning*
 (CC BY-SA, fetched at a pinned commit). 81 golden questions with **verbatim evidence
 quotes**, covering single-source, multi-chapter, out-of-scope and academic-integrity cases.
 Relevance is "the chunk contains the evidence", not "the chunk comes from the right file".
-All means carry 95% bootstrap CIs. Details are in [`backend/eval/README.md`](backend/eval/README.md).
+All means carry 95% bootstrap CIs. Models for these runs: `gpt-6-luna` (chat, utility and
+judge, reasoning effort `none`) and `text-embedding-3-large`. Details are in
+[`backend/eval/README.md`](backend/eval/README.md).
 
-| Retrieval (k = 5, 75 in-scope questions) | Hit@5 | Recall@5 | MRR | nDCG@5 |
-|---|---|---|---|---|
-| BM25 only (measured, no API needed) | **85.3%** [77.3, 93.3] | 80.7% [71.8, 88.9] | 0.707 [0.62, 0.79] | 0.703 [0.62, 0.79] |
-| dense / hybrid / + multi-query / + rerank / full | run `python -m eval.run retrieval` | | | |
+### Retrieval (k = 5, 75 in-scope questions)
 
-End-to-end answer quality (faithfulness, citation precision, correctness, false
-abstentions, out-of-scope and refusal behaviour, p50/p95 latency, total cost broken down by
-pipeline stage) is produced by `python -m eval.run generation` with an LLM judge. Those
-numbers will be published here once the run has been done with an API key; none are
-claimed until then. CI runs the whole harness offline on every PR and **fails if BM25
-Hit@5 drops below 0.80**.
+| config | Hit@5 | Recall@5 | MRR | nDCG@5 | p50 latency |
+|---|---|---|---|---|---|
+| BM25 only | 85.3 [77.3, 93.3] | 80.7 [71.8, 88.9] | 0.707 [0.62, 0.79] | 0.703 [0.62, 0.79] | 4 ms |
+| dense (v1-style baseline) | 89.3 [82.7, 96.0] | 86.0 [78.0, 92.7] | 0.702 [0.62, 0.79] | 0.720 [0.64, 0.80] | 333 ms |
+| dense + MMR | 77.3 [68.0, 86.7] | 74.0 [64.0, 83.3] | 0.668 [0.57, 0.76] | 0.656 [0.57, 0.75] | 342 ms |
+| hybrid (BM25 + dense, RRF) | 89.3 [82.7, 96.0] | 86.0 [78.0, 92.7] | 0.744 [0.66, 0.82] | 0.747 [0.67, 0.82] | 330 ms |
+| hybrid + MMR | 77.3 [68.0, 86.7] | 74.0 [64.0, 83.3] | 0.679 [0.59, 0.77] | 0.662 [0.57, 0.75] | 334 ms |
+| hybrid + multi-query | 92.0 [85.3, 97.3] | 85.8 [78.4, 92.4] | 0.746 [0.67, 0.83] | 0.746 [0.67, 0.82] | 3.3 s |
+| hybrid + rerank | 93.3 [88.0, 98.7] | 89.8 [82.9, 95.3] | 0.839 [0.77, 0.90] | 0.832 [0.76, 0.90] | 2.8 s |
+| **full** (hybrid-MMR + multi-query + rerank) | **100.0** [100.0, 100.0] | **95.8** [92.2, 98.7] | **0.898** [0.85, 0.94] | **0.885** [0.84, 0.93] | 7.0 s |
+
+### Answers (end to end through `ChatService`, 81 questions)
+
+| config | faithfulness | citation precision | correctness | context recall | false abstain | OOS ok | refusal ok | p50 / p95 latency |
+|---|---|---|---|---|---|---|---|---|
+| dense | 95.8 [93.0, 98.2] | 95.2 [92.0, 97.8] | 95.3 [90.7, 98.7] | 86.0 [78.0, 92.7] | 1.3 [0.0, 4.0] | 4/4 | 2/2 | 4.8 / 6.6 s |
+| hybrid | 94.7 [91.9, 97.2] | 94.5 [91.6, 97.0] | 96.7 [92.7, 99.3] | 86.7 [78.7, 93.3] | 2.7 [0.0, 6.7] | 4/4 | 2/2 | 5.0 / 6.4 s |
+| hybrid + rerank | 95.3 [92.1, 97.7] | 95.2 [92.1, 97.7] | 96.0 [92.0, 98.7] | 89.8 [82.9, 95.3] | 2.7 [0.0, 6.7] | 4/4 | 2/2 | 7.3 / 9.2 s |
+| **full** | **98.0** [96.0, 99.4] | **97.0** [94.7, 98.7] | **100.0** [100.0, 100.0] | **95.6** [91.6, 98.7] | **0.0** [0.0, 0.0] | 4/4 | 2/2 | 11.2 / 14.2 s |
+
+**What the numbers say.**
+
+- **The production pipeline (`full`) is the best configuration, and the gap is real.** Against
+  the dense baseline its MRR is 0.898 vs 0.702 and its answer correctness 100% vs 95.3%,
+  with non-overlapping CIs in both cases. Every in-scope question has evidence in the top 5,
+  and no in-scope question was wrongly answered with "not found".
+- **The reranker is the biggest single lever on ranking**: hybrid → hybrid + rerank lifts
+  MRR from 0.744 to 0.839. Hybrid alone and multi-query alone move the numbers by less than
+  their CIs, so on this corpus they are not shown to help in isolation.
+- **MMR on its own hurts.** Diversifying the top 5 drops Hit@5 by 12 points (89.3 → 77.3)
+  for both dense and hybrid, because it pushes out near-duplicate chunks that carry the
+  evidence. It only pays off inside `full`, where multi-query and the reranker recover
+  those chunks.
+- **Context recall drives answer quality.** Faithfulness and citation precision are high
+  (≥ 94.5%) in every configuration. Every correctness error outside `full` falls on the same
+  five questions (`cross-02`, `multi-01`, `multi-04`, `d2l-adam-01`, `d2l-shift-03`; three
+  of them multi-chapter), and in each case the evidence never reached the prompt (context
+  recall 0–33%). `full` retrieves it and answers all five correctly.
+- **Quality costs latency.** `full` is 2.3× slower than dense at p50 (11.2 s vs 4.8 s),
+  mostly from the multi-query and rerank calls. Streaming hides part of that, but this is
+  the trade-off to tune (fewer variations, a smaller rerank pool) if latency matters more.
+
+**Caveats, stated up front.**
+
+- **Same model generates and judges.** `gpt-6-luna` is the chat, utility and judge model,
+  so self-preference bias is possible. Judge–human agreement (Cohen's κ) has not been
+  measured yet; until it is, treat faithfulness and correctness as upper bounds.
+- **Cost was not measured for these runs.** `gpt-6-luna` is not in the pricing table
+  (`app/infrastructure/llm/pricing.py`), so only embedding calls were priced and the
+  reports show ~$0. Token counts were not stored per question, so cost cannot be
+  recovered from the artifacts.
+- **Small behaviour sets.** Out-of-scope (4) and refusal (2) cases all pass, but n is too
+  small to estimate a rate. The harness counts an out-of-scope question routed to chitchat
+  as correct; in `hybrid + rerank` and `full`, "What is the capital of France?" went to
+  chitchat and was answered ("Paris") from the model's own knowledge, which that rule is
+  lenient about.
+- **Models differ from production defaults.** The app ships with `gpt-4.1` / `gpt-4.1-mini`;
+  these runs used `gpt-6-luna` for every LLM role.
+
+CI runs the whole harness offline on every PR and **fails if BM25 Hit@5 drops below 0.80**.
 
 ```bash
 cd backend
@@ -292,7 +347,9 @@ PersonaRAG/
 - Semantic chunking for markdown / code
 - Postgres adapter behind the same `Protocol`s
 - Per-user auth & document isolation
-- Publish the full retrieval/answer ablation with an API key, plus judge–human agreement (Cohen's κ)
+- Judge–human agreement (Cohen's κ) and a judge from a different model family than the generator
+- Price `gpt-6-luna` and store per-question token counts, so the eval reports real cost per stage
+- Re-run the answer ablation with the production defaults (`gpt-4.1` / `gpt-4.1-mini`)
 - Vietnamese course materials and questions (bilingual embeddings, Vietnamese word segmentation for BM25)
 
 ---
