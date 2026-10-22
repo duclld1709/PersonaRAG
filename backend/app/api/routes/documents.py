@@ -10,14 +10,16 @@ from docx import Document as DocxDocument
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pypdf import PdfReader
 
-from app.api.dependencies import get_document_service
+from app.api.dependencies import get_document_service, get_settings
 from app.api.schemas.documents import (
     DocumentDetailResponse,
     DocumentResponse,
     DocumentTagLiteral,
     DocumentUpsertRequest,
 )
+from app.core.config import Settings
 from app.domain.models.document import DocumentRecord, DocumentTag
+from app.ingestion.splitters import PAGE_BREAK
 from app.services.document_service import DocumentService
 
 router = APIRouter()
@@ -39,14 +41,15 @@ async def upload_document(
     filename: str | None = Form(None),
     tag: DocumentTagLiteral = Form("other"),
     document_service: DocumentService = Depends(get_document_service),
+    settings: Settings = Depends(get_settings),
 ) -> DocumentResponse:
     display_name = (filename or file.filename or "").strip()
     if not display_name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required.")
     try:
-        content = await extract_text_from_upload(file)
+        content = await extract_text_from_upload(file, max_bytes=settings.max_upload_mb * 1024 * 1024)
+    except UploadTooLargeError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
@@ -58,9 +61,7 @@ async def upload_document(
         await file.close()
 
     try:
-        record = document_service.upsert_document(
-            filename=display_name, content=content, tag=DocumentTag(tag)
-        )
+        record = document_service.upsert_document(filename=display_name, content=content, tag=DocumentTag(tag))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -111,9 +112,7 @@ def delete_document(
     document_service.delete_document(document_id)
 
 
-def to_response(
-    record: DocumentRecord, *, content: str | None = None
-) -> DocumentResponse | DocumentDetailResponse:
+def to_response(record: DocumentRecord, *, content: str | None = None) -> DocumentResponse | DocumentDetailResponse:
     payload = {
         "id": record.id,
         "filename": record.filename,
@@ -128,12 +127,23 @@ def to_response(
     return DocumentResponse(**payload)
 
 
-async def extract_text_from_upload(upload: UploadFile) -> str:
+class UploadTooLargeError(ValueError):
+    pass
+
+
+async def extract_text_from_upload(upload: UploadFile, *, max_bytes: int | None = None) -> str:
     extension = Path(upload.filename or "").suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
         raise ValueError("Unsupported file type. Allowed extensions: .txt, .pdf, .docx, .md.")
 
-    raw_bytes = await upload.read()
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := await upload.read(1 << 20):
+        size += len(chunk)
+        if max_bytes is not None and size > max_bytes:
+            raise UploadTooLargeError(f"File is larger than {max_bytes // (1024 * 1024)} MB.")
+        chunks.append(chunk)
+    raw_bytes = b"".join(chunks)
     if not raw_bytes:
         raise ValueError("Uploaded file is empty.")
 
@@ -145,12 +155,10 @@ async def extract_text_from_upload(upload: UploadFile) -> str:
         content = text.strip()
     elif extension == ".pdf":
         reader = PdfReader(BytesIO(raw_bytes))
-        pages: list[str] = []
-        for page in reader.pages:
-            extracted = page.extract_text() or ""
-            if extracted:
-                pages.append(extracted.strip())
-        content = "\n\n".join(pages).strip()
+        # Keep page boundaries (form feed) so chunks can cite page numbers. v1
+        # joined pages with blank lines and lost them, so citations never had pages.
+        pages = [(page.extract_text() or "").replace(PAGE_BREAK, " ").strip() for page in reader.pages]
+        content = PAGE_BREAK.join(pages)  # no strip(): it would eat leading empty pages and shift numbers
     else:  # .docx
         document = DocxDocument(BytesIO(raw_bytes))
         segments: list[str] = []
@@ -162,6 +170,6 @@ async def extract_text_from_upload(upload: UploadFile) -> str:
                     segments.append("\t".join(cells))
         content = "\n\n".join(segments).strip()
 
-    if not content:
+    if not content.strip():
         raise ValueError("No readable text content found in the uploaded file.")
     return content

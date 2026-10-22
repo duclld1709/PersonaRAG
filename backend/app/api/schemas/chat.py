@@ -54,6 +54,8 @@ class ChatResponse(BaseModel):
     mode: str = "answer"
     cache_hit: bool = False
     refused: bool = False
+    intent: str = "retrieve"
+    cost_breakdown: dict[str, float] = Field(default_factory=dict, description="USD per pipeline stage")
 
 
 class ConversationMessage(BaseModel):

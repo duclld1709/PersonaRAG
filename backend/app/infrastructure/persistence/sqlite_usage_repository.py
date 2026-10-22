@@ -22,6 +22,7 @@ class UsageEvent:
     latency_ms: int | None = None
     cache_hit: bool = False
     created_at: datetime | None = None
+    request_id: str | None = None
 
 
 @dataclass
@@ -49,8 +50,8 @@ class SqliteUsageRepository:
                 """
                 INSERT INTO usage_events (
                     conversation_id, mode, model, prompt_tokens, completion_tokens,
-                    cached_tokens, cost_usd, latency_ms, cache_hit, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    cached_tokens, cost_usd, latency_ms, cache_hit, created_at, request_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.conversation_id,
@@ -63,6 +64,7 @@ class SqliteUsageRepository:
                     event.latency_ms,
                     1 if event.cache_hit else 0,
                     created_at,
+                    event.request_id,
                 ),
             )
 
@@ -70,7 +72,7 @@ class SqliteUsageRepository:
         with self._db.cursor() as cur:
             cur.execute(
                 """
-                SELECT model, prompt_tokens, completion_tokens, cached_tokens,
+                SELECT id, request_id, model, prompt_tokens, completion_tokens, cached_tokens,
                        cost_usd, latency_ms, cache_hit
                   FROM usage_events
                  ORDER BY id DESC LIMIT ?
@@ -101,8 +103,9 @@ class SqliteUsageRepository:
             entry["events"] += 1
 
         avg_latency = latency_sum / latency_count if latency_count else 0.0
+        requests = {row["request_id"] or f"row-{row['id']}" for row in rows}
         return UsageSummary(
-            total_events=len(rows),
+            total_events=len(requests),
             total_tokens=total_tokens,
             total_cost_usd=round(total_cost, 6),
             cache_hits=cache_hits,

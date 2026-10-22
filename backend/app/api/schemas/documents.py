@@ -6,9 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-DocumentTagLiteral = Literal[
-    "lecture_notes", "paper", "textbook", "assignment", "reference", "other"
-]
+DocumentTagLiteral = Literal["lecture_notes", "paper", "textbook", "assignment", "reference", "other"]
 
 
 class DocumentUpsertRequest(BaseModel):

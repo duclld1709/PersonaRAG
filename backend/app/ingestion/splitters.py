@@ -7,6 +7,9 @@ from typing import Iterable
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+# Separates pages in stored document text (PDF uploads). Chunks never span pages.
+PAGE_BREAK = "\f"
+
 
 def split_documents(
     documents: Iterable[Document],
@@ -28,4 +31,12 @@ def split_documents(
         length_function=len,
     )
 
-    return splitter.split_documents(list(documents))
+    paged: list[Document] = []
+    for doc in documents:
+        if PAGE_BREAK not in doc.page_content:
+            paged.append(doc)
+            continue
+        for number, page in enumerate(doc.page_content.split(PAGE_BREAK), start=1):
+            if page.strip():
+                paged.append(Document(page_content=page, metadata={**doc.metadata, "page": number}))
+    return splitter.split_documents(paged)

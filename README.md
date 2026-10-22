@@ -1,8 +1,9 @@
 # PersonaRAG — Research Assistant for Students
 
-> **Production-grade RAG on the full OpenAI stack.** Upload lecture notes, papers, and textbooks. Ask grounded questions. Get answers with inline citations — every time.
+> **A measured RAG study assistant on the OpenAI stack.** Upload lecture notes, papers, and textbooks. Ask grounded questions. Get answers with inline citations, or an honest "not in your materials".
 
 <p>
+  <a href="https://github.com/duclld1709/PersonaRAG/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/duclld1709/PersonaRAG/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white">
   <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.111-009688?logo=fastapi&logoColor=white">
   <img alt="Next.js" src="https://img.shields.io/badge/Next.js-14-black?logo=nextdotjs&logoColor=white">
@@ -17,32 +18,63 @@
 
 Students drown in course materials — lecture slides, assigned papers, textbook chapters — and ChatGPT happily hallucinates on top of all of it. **PersonaRAG** is a private research assistant that only answers from the materials _you_ upload, cites every claim, and refuses to help with plagiarism.
 
-It is also a full-stack engineering portfolio project: every quality lever of a modern RAG system is implemented from scratch and **measured** on a reproducible eval harness.
+It is also a full-stack engineering portfolio project: the usual quality levers of a RAG system (hybrid search, multi-query, reranking, caching, routing) are implemented from scratch, and each is evaluated on a reproducible harness rather than assumed to help.
 
 ---
 
-## Results (reproducible)
+## Evaluation (honest numbers)
 
-Ablation on a 23-question golden set (20 in-scope + 2 out-of-scope + 1 refusal):
+> **v2 correction.** The v1 README showed a results table (faithfulness 0.72 → 0.88,
+> "−10% cost", and so on). Those numbers came from the harness's `--dry-run` placeholder
+> generator, not from a model run. They have been removed. The harness was rebuilt so that
+> every number below can be traced to a run in [`backend/eval/reports/runs/`](backend/eval/reports/runs/).
 
-| Config          | Faithfulness | Answer Rel. | Context Prec. | Context Rec. | p50 Latency | p95 Latency | Avg Cost   |
-|-----------------|--------------|-------------|---------------|--------------|-------------|-------------|------------|
-| baseline        | 0.718        | 0.668       | 0.697         | 0.638        | 1800 ms     | 2110 ms     | $0.0041    |
-| hybrid          | 0.794        | 0.744       | 0.773         | 0.714        | 2000 ms     | 2390 ms     | $0.0043    |
-| hybrid+rerank   | 0.847        | 0.798       | 0.832         | 0.768        | 2200 ms     | 2610 ms     | $0.0058    |
-| **full**        | **0.876**    | **0.826**   | **0.859**     | **0.793**    | **1690 ms** | **2180 ms** | **$0.0037** |
+**Setup.** 400 chunks from 2 lecture notes plus 14 sections of *Dive into Deep Learning*
+(CC BY-SA, fetched at a pinned commit). 81 golden questions with **verbatim evidence
+quotes**, covering single-source, multi-chapter, out-of-scope and academic-integrity cases.
+Relevance is "the chunk contains the evidence", not "the chunk comes from the right file".
+All means carry 95% bootstrap CIs. Details are in [`backend/eval/README.md`](backend/eval/README.md).
 
-**Headline deltas (baseline → full):** `+22%` faithfulness, `+23%` context precision, `−6%` p50 latency, `−10%` cost. Full methodology in [`backend/eval/`](./backend/eval/).
+| Retrieval (k = 5, 75 in-scope questions) | Hit@5 | Recall@5 | MRR | nDCG@5 |
+|---|---|---|---|---|
+| BM25 only (measured, no API needed) | **85.3%** [77.3, 93.3] | 80.7% [71.8, 88.9] | 0.707 [0.62, 0.79] | 0.703 [0.62, 0.79] |
+| dense / hybrid / + multi-query / + rerank / full | run `python -m eval.run retrieval` | | | |
 
-Reproduce:
+End-to-end answer quality (faithfulness, citation precision, correctness, false
+abstentions, out-of-scope and refusal behaviour, p50/p95 latency, total cost broken down by
+pipeline stage) is produced by `python -m eval.run generation` with an LLM judge. Those
+numbers will be published here once the run has been done with an API key; none are
+claimed until then. CI runs the whole harness offline on every PR and **fails if BM25
+Hit@5 drops below 0.80**.
 
 ```bash
 cd backend
-pip install -e .[eval]
+pip install -e .[dev]
+python -m eval.fetch_corpus
 export OPENAI_API_KEY=sk-...
-python -m eval.run_eval                # all configs, live
-python -m eval.run_eval --dry-run      # deterministic CI smoke test
+python -m eval.run all                 # retrieval ablation + answers + judge
+python -m eval.run all --offline       # no key: BM25 real, the rest is a harness smoke test
 ```
+
+---
+
+## Engineering audit (v1 → v2)
+
+| v1 problem | Impact | v2 |
+|---|---|---|
+| README results were dry-run placeholders | Unverifiable claims | Rebuilt harness, evidence-labelled golden set, CIs, run artifacts committed |
+| Retrieval "precision/recall" measured by **file name** on a 2-file corpus | Almost any chunk counted as relevant | Evidence-quote relevance on a 400-chunk corpus; Hit/Recall/MRR/nDCG |
+| Docstring promised RAGAS; code used word-overlap heuristics | Misleading metrics | Structured LLM judge (claims, citations, correctness) + human-agreement protocol |
+| Eval forced every question to "retrieve" and used a second, drifted copy of the pipeline | Router and out-of-scope behaviour never measured | One pipeline: `generate_answer` consumes `stream_answer`; the eval goes through the real router |
+| Semantic cache was **global**: ignored mode, conversation and document changes | Quiz answer served for "Explain"; answers citing deleted docs; follow-ups hitting other conversations' answers | Scoped by mode, first turn only, cleared on corpus change, "not found" answers never cached |
+| Cost meter counted only the final generation call | Router, rewrite, expansion, rerank and embeddings invisible; cost under-reported | Per-request usage tracker, cost broken down by stage in the API, UI and eval |
+| Blocking OpenAI calls inside the async SSE generator | One streaming answer stalled every other request | Pipeline iterated in a thread pool |
+| PDF pages joined into one string | Citations never had page numbers | Page boundaries kept; chunks carry `page` |
+| Reranker blended LLM score with raw RRF score (~0.01) | The "0.3 × upstream" term was a no-op | RRF rescaled to [0, 1] before blending |
+| `dedent()` over an f-string with multi-line excerpts | Every prompt carried stray 8-space indents | Prompt assembled explicitly |
+| Cache threshold copied at startup | Settings slider had no effect | Read live from settings |
+| `CORS allow_origins=["*"]` with credentials; no upload size limit; raw exception text sent to clients | Security / robustness | Configurable origins, `MAX_UPLOAD_MB` (413), generic stream errors |
+| No tests, no CI | Regressions undetected | 46 backend tests (offline fakes), eval gate, frontend type-check/lint/build in CI |
 
 ---
 
@@ -52,13 +84,13 @@ python -m eval.run_eval --dry-run      # deterministic CI smoke test
 - **Hybrid search** — BM25 + dense embeddings, fused via Reciprocal Rank Fusion (configurable weights)
 - **Multi-query expansion** — GPT-4.1-mini generates paraphrases to broaden recall
 - **LLM cross-encoder reranker** — structured-output scoring blends with upstream evidence
-- **Semantic response cache** — cosine-similarity cache keyed on query embeddings (≈50 ms, $0 hits)
+- **Semantic response cache**: cosine similarity on query embeddings, scoped by response mode, first-turn questions only, invalidated when documents change
 - **Query router** — classifies retrieve / chitchat / refuse so small-talk doesn't burn retrieval budget
 - **Incremental reindex** — per-chunk checksum diff, only re-embed changed chunks
 
 ### Generation
 - **OpenAI-only stack**: `gpt-4.1` (chat), `gpt-4.1-mini` (router/rewriter/reranker), `text-embedding-3-large`, `omni-moderation-latest`
-- **Prompt caching** on the static system prompt → ~50 % cheaper prompt tokens
+- **Static system prompt first**, so OpenAI's automatic prompt caching applies (cached tokens are tracked and priced separately)
 - **Structured outputs** (`response_format=json_schema`) for query expansion + reranker
 - **Citation-first prompting** with explicit refusal fallbacks (_"I could not find this in your materials"_)
 - **Six response modes**: Answer, Explain, Summarize, Compare, Outline, Quiz
@@ -69,7 +101,7 @@ python -m eval.run_eval --dry-run      # deterministic CI smoke test
 - **Academic integrity guardrail** — refuses plagiarism/AI-detection-evasion requests
 
 ### Observability
-- **Per-request token & cost accounting** persisted to SQLite (OpenAI chat/embedding pricing table included)
+- **Per-request token & cost accounting across every model call** (router, rewrite, expansion, rerank, embeddings, generation), broken down by stage and persisted to SQLite
 - **Usage endpoint** (`/api/v1/usage/summary`) + live cost meter in the UI
 - **LangSmith tracing** with graceful degradation when disabled
 
@@ -77,7 +109,7 @@ python -m eval.run_eval --dry-run      # deterministic CI smoke test
 - **Three-pane layout**: Conversation list · Chat · Live Context panel showing retrieved excerpts
 - **Inline citation pills** ([1], [2]) that highlight the matching excerpt in the Context panel on hover
 - **Thinking indicator** surfaces each pipeline stage while the answer streams
-- **Cost meter** in the top bar (last-response latency + USD + cache badge)
+- **Cost meter** in the top bar (last-response latency + total USD + cache badge; hover for per-stage cost)
 - **Settings drawer** with sliders for retrieval_k, rerank_top_n, cache threshold, moderation on/off
 - **Document library** with tag selector (lecture_notes / paper / textbook / assignment / reference)
 - **Dark mode**, drag-and-drop upload, prompt suggestions for the empty state
@@ -149,7 +181,7 @@ user message
 | Backend        | FastAPI · Uvicorn · Pydantic v2 · SQLite (stdlib)                    |
 | Observability  | LangSmith · custom usage repository                                  |
 | Frontend       | Next.js 14 · React 18 · TypeScript · Tailwind · SWR · Lucide         |
-| Eval           | Custom RAGAS-compatible metrics · ablation harness                   |
+| Eval           | Evidence-labelled golden set · IR metrics · LLM judge · bootstrap CIs |
 | Deploy         | Docker · docker-compose                                              |
 
 ---
@@ -210,7 +242,8 @@ PersonaRAG/
 │   │   ├── services/             ChatService · ConversationService · DocumentService · UsageService
 │   │   ├── bootstrap.py          dependency graph
 │   │   └── main.py               FastAPI entrypoint
-│   ├── eval/                     golden set · metrics · ablation runner · reports/
+│   ├── eval/                     corpus fetcher · evidence-labelled golden set · retrieval + judge metrics · reports/runs/
+│   ├── tests/                    46 offline tests (fake embeddings/LLM through the real pipeline)
 │   ├── pyproject.toml
 │   └── .env.example
 ├── frontend/
@@ -248,7 +281,7 @@ PersonaRAG/
 - **Hybrid over multi-query-cosplay.** The old "hybrid" was just multi-query against a vector store — honest hybrid is BM25 + dense fused by rank, so that's what this is.
 - **LLM reranker over Cohere.** Keeps the stack single-vendor and lets the reranker share prompt-caching and billing with the rest of the app.
 - **SQLite, not Postgres.** The data model is tiny (conversations + messages + documents + usage). WAL mode handles concurrent reads during streaming; when this outgrows SQLite the `Protocol`-based repositories swap for Postgres without touching services.
-- **Custom RAGAS-style metrics, not full RAGAS.** RAGAS' LLM-graded metrics cost real money per eval run. The heuristic versions here correlate well enough to **rank** pipeline variants, which is what matters for ablation. RAGAS is supported behind an optional `[eval]` extra for full-grade runs.
+- **Evidence-labelled golden set over a framework metric suite.** Every in-scope question carries verbatim evidence quotes, so retrieval is scored deterministically (and gated in CI without an API key); only answer quality needs the LLM judge, whose agreement with human labels should be reported alongside its scores.
 - **Clean Architecture was worth it.** Swapping the persistence layer from in-memory → SQLite was one file of implementation + zero changes in the service layer. Interfaces earn their keep here.
 
 ---
@@ -259,7 +292,8 @@ PersonaRAG/
 - Semantic chunking for markdown / code
 - Postgres adapter behind the same `Protocol`s
 - Per-user auth & document isolation
-- CI job that runs `eval/run_eval.py --dry-run` on every PR
+- Publish the full retrieval/answer ablation with an API key, plus judge–human agreement (Cohen's κ)
+- Vietnamese course materials and questions (bilingual embeddings, Vietnamese word segmentation for BM25)
 
 ---
 

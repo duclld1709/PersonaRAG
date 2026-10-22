@@ -1,6 +1,6 @@
 [project]
 name = "personarag-backend"
-version = "1.0.0"
+version = "2.0.0"
 description = "PersonaRAG — Research Assistant for Students. OpenAI-only RAG backend."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -42,14 +42,29 @@ dev = [
     "pytest>=8.2.0",
     "pytest-asyncio>=0.23.7",
     "ruff>=0.4.7",
-    "mypy>=1.8.0"
+    "mypy>=1.8.0",
+    "httpx>=0.27.0"
 ]
-eval = [
-    "ragas>=0.1.10",
-    "datasets>=2.20.0",
-    "pandas>=2.2.0"
-]
+# The eval harness (eval/) needs nothing beyond the runtime + dev dependencies.
 
 [build-system]
 requires = ["setuptools>=69.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["eval/corpus", "eval/reports"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["B008", "UP007", "UP035", "UP006", "UP045"]
+
+[tool.ruff.lint.per-file-ignores]
+"eval/fetch_corpus.py" = ["E501"]  # pinned checksums

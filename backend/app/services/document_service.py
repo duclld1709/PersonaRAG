@@ -43,7 +43,7 @@ class DocumentService:
 
         existing = self._repository.get(document_id) if document_id else None
 
-        summary_source = content.strip()
+        summary_source = " ".join(content.split())
         summary = summary_source[:200] + ("..." if len(summary_source) > 200 else "")
 
         if existing:
@@ -57,9 +57,7 @@ class DocumentService:
             new_id = document_id or uuid4()
             storage_name = self._storage.build_text_filename(filename, new_id)
             path = self._storage.save_text(storage_name, content)
-            record = DocumentRecord(
-                id=new_id, filename=filename, source_path=path, summary=summary, tag=tag
-            )
+            record = DocumentRecord(id=new_id, filename=filename, source_path=path, summary=summary, tag=tag)
 
         chunks = self._index_document(record, content)
         record.chunk_count = chunks

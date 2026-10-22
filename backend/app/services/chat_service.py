@@ -1,19 +1,24 @@
-"""Chat orchestration service for the research-assistant RAG workflow.
+"""Chat orchestration for the research-assistant RAG workflow.
 
-Pipeline:
-    route(question) →
-        if refuse:    return refusal
-        if chitchat:  answer without retrieval
-        if retrieve:  cache lookup → hybrid retrieve → rerank → generate → cache store
+One pipeline, two entry points. :meth:`ChatService.stream_answer` yields SSE events,
+and :meth:`ChatService.generate_answer` consumes the same generator. The eval harness
+therefore measures exactly the code path users hit. v1 had two hand-maintained copies
+that had already drifted apart.
+
+    moderation → route ─┬─ refuse   → templated refusal
+                        ├─ chitchat → utility model, no retrieval
+                        └─ retrieve → [first turn: semantic cache] → rewrite → expand
+                                      → hybrid retrieve → rerank → generate → cache
 """
 
 from __future__ import annotations
 
 import time
-from dataclasses import asdict, dataclass
+import uuid
+from dataclasses import asdict, dataclass, field
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterator, Sequence
 from uuid import UUID
 
 from langchain_core.documents import Document
@@ -23,19 +28,18 @@ from pydantic import BaseModel
 from app.core.config import Settings
 from app.core.prompts import (
     CHITCHAT_SYSTEM_PROMPT,
-    ChatMode,
-    MODE_INSTRUCTIONS,
+    MODERATION_MESSAGE,
+    NOT_FOUND_PHRASE,
     QUERY_EXPANSION_SYSTEM_PROMPT,
     QUERY_REWRITE_SYSTEM_PROMPT,
     REFUSAL_MESSAGE,
     RESEARCH_ASSISTANT_SYSTEM_PROMPT,
+    ChatMode,
     build_user_prompt,
 )
-from app.domain.interfaces.embedding_client import EmbeddingClient
-from app.domain.interfaces.vector_store import VectorStore
-from app.domain.models.chat import ChatMessage, Citation, Conversation, MessageRole, TokenUsage
-from app.infrastructure.llm.openai_chat import OpenAIChatClient, OpenAIUtilityClient
-from app.infrastructure.moderation.openai_moderation import OpenAIModerationClient
+from app.core.usage import UsageTracker, tracking
+from app.domain.interfaces.llm_client import LLMClient
+from app.domain.models.chat import ChatMessage, Citation, MessageRole, TokenUsage
 from app.infrastructure.persistence.sqlite_usage_repository import SqliteUsageRepository, UsageEvent
 from app.retrieval import (
     HybridRetriever,
@@ -49,28 +53,14 @@ from app.services.conversation_service import ConversationService
 
 logger = getLogger(__name__)
 
-try:
-    from langsmith.run_helpers import traceable
-except ImportError:  # pragma: no cover
-
-    def traceable(*dargs: Any, **dkwargs: Any):
-        def decorator(func: Any) -> Any:
-            return func
-
-        if dargs and callable(dargs[0]) and not dkwargs:
-            return dargs[0]
-        return decorator
-
 
 class _QueryVariations(BaseModel):
-    """Structured response from the expansion model."""
-
     queries: list[str]
 
 
 @dataclass
 class ChatGenerationResult:
-    """Container for a generated assistant answer and supporting citations."""
+    """A finished answer plus everything needed to evaluate it."""
 
     answer: str
     citations: list[Citation]
@@ -79,21 +69,20 @@ class ChatGenerationResult:
     mode: str
     cache_hit: bool = False
     refused: bool = False
+    intent: str = "retrieve"
+    cost_breakdown: dict[str, float] = field(default_factory=dict)
+    contexts: list[str] = field(default_factory=list)
 
 
 class ChatService:
-    """High-level service orchestrating the RAG pipeline end to end."""
-
     def __init__(
         self,
         *,
         settings: Settings,
         conversation_service: ConversationService,
-        vector_store: VectorStore,
-        chat_client: OpenAIChatClient,
-        utility_client: OpenAIUtilityClient,
-        embedding_client: EmbeddingClient,
-        moderation_client: OpenAIModerationClient,
+        chat_client: LLMClient,
+        utility_client: LLMClient,
+        moderation_client: Any,
         retriever: HybridRetriever,
         reranker: LLMReranker,
         router: QueryRouter,
@@ -102,10 +91,8 @@ class ChatService:
     ) -> None:
         self._settings = settings
         self._conversation_service = conversation_service
-        self._vector_store = vector_store
         self._chat = chat_client
         self._utility = utility_client
-        self._embeddings = embedding_client
         self._moderation = moderation_client
         self._retriever = retriever
         self._reranker = reranker
@@ -113,324 +100,254 @@ class ChatService:
         self._cache = cache
         self._usage = usage_repository
 
-    # ------------------------------------------------------------------
-    # Streaming entrypoint
-    # ------------------------------------------------------------------
-    @traceable(name="chat_service.stream_answer", run_type="chain")
-    def stream_answer(
-        self,
-        conversation_id: UUID,
-        question: str,
-        *,
-        mode: ChatMode = ChatMode.ANSWER,
-        run_tree: Any | None = None,
-    ) -> Iterable[dict[str, Any]]:
-        start = time.perf_counter()
+    def set_clients(self, *, chat_client: LLMClient, utility_client: LLMClient) -> None:
+        """Swap models at runtime (settings panel)."""
 
+        self._chat = chat_client
+        self._utility = utility_client
+        self._reranker._client = utility_client
+        self._router._client = utility_client
+
+    # ------------------------------------------------------------------ entry points
+
+    def stream_answer(
+        self, conversation_id: UUID, question: str, *, mode: ChatMode = ChatMode.ANSWER
+    ) -> Iterator[dict[str, Any]]:
+        """Yield ``status``/``delta``/``citations`` events, then one final ``usage`` event."""
+
+        start = time.perf_counter()
+        tracker = UsageTracker()
         conversation = self._conversation_service.get_conversation(conversation_id)
         if not conversation:
             raise ValueError("Conversation not found")
+        history = list(conversation.messages)
+        run = _Run(conversation_id, question, mode, start, tracker)
 
-        history_before = list(conversation.messages)
-
-        # 1. Moderation — student safety & abuse prevention.
         if self._settings.enable_moderation:
-            moderation = self._moderation.check(question)
-            if moderation.flagged:
-                yield from self._finalize_refusal(
-                    conversation_id,
-                    question,
-                    "Your question was flagged by content moderation — please rephrase.",
-                    mode=mode,
-                    start=start,
-                )
+            with tracking(tracker, "moderation"):
+                flagged = self._moderation.check(question).flagged
+            if flagged:
+                yield {"status": "refused"}
+                yield {"delta": MODERATION_MESSAGE}
+                yield from self._finish(run, MODERATION_MESSAGE, intent="refuse", refused=True)
                 return
 
-        # 2. Intent routing.
         yield {"status": "routing"}
-        intent = self._router.classify(question)
+        with tracking(tracker, "router"):
+            intent = self._router.classify(question)
 
         if intent == QueryIntent.REFUSE:
-            yield from self._finalize_refusal(
-                conversation_id, question, REFUSAL_MESSAGE, mode=mode, start=start
-            )
+            yield {"status": "refused"}
+            yield {"delta": REFUSAL_MESSAGE}
+            yield from self._finish(run, REFUSAL_MESSAGE, intent="refuse", refused=True)
             return
 
         if intent == QueryIntent.CHITCHAT:
-            yield from self._handle_chitchat(conversation_id, history_before, question, mode, start)
+            yield {"status": "chitchat"}
+            messages = [
+                SystemMessage(content=CHITCHAT_SYSTEM_PROMPT),
+                *self._to_langchain_messages(self._trim_history(history)),
+                HumanMessage(content=question),
+            ]
+            answer = yield from self._stream_llm(self._utility, messages, tracker, "chitchat")
+            yield from self._finish(run, answer, intent="chitchat", model=self._utility.model_name)
             return
 
-        # 3. Semantic cache lookup.
-        cached = self._cache.lookup(question)
-        if cached:
-            yield {"status": "cache_hit"}
-            self._conversation_service.add_user_message(conversation_id, question)
-            latency_ms = int((time.perf_counter() - start) * 1000)
-            usage = TokenUsage()
-            assistant_msg = ChatMessage(
-                role=MessageRole.ASSISTANT,
-                content=cached.answer,
-                citations=list(cached.citations) or None,
-                usage=usage,
-                latency_ms=latency_ms,
-                mode=mode.value,
-            )
-            self._conversation_service.append_assistant(conversation_id, assistant_msg)
-            yield {"delta": cached.answer}
-            if cached.citations:
-                yield {"citations": [asdict(c) for c in cached.citations]}
-            yield {
-                "usage": asdict(usage),
-                "latency_ms": latency_ms,
-                "cache_hit": True,
-                "mode": mode.value,
-            }
-            self._usage.record(
-                UsageEvent(
-                    conversation_id=str(conversation_id),
-                    mode=mode.value,
-                    model=self._chat.model_name,
-                    usage=usage,
-                    latency_ms=latency_ms,
-                    cache_hit=True,
-                )
-            )
-            return
+        # Only standalone (first-turn) questions may use the cache: a follow-up's
+        # meaning depends on this conversation.
+        use_cache = self._settings.enable_semantic_cache and not history
+        if use_cache:
+            with tracking(tracker, "cache"):
+                cached = self._cache.lookup(question, scope=mode.value)
+            if cached:
+                yield {"status": "cache_hit"}
+                yield {"delta": cached.answer}
+                yield from self._finish(run, cached.answer, cached.citations, cache_hit=True)
+                return
 
-        # 4. Query rewrite + expansion for retrieval.
         yield {"status": "retrieving"}
-        search_query = self._rewrite_question(history_before, question)
-        expansions = self._expand_query(search_query)
+        with tracking(tracker, "rewrite"):
+            search_query = self._rewrite_question(history, question)
+        with tracking(tracker, "expand"):
+            expansions = self._expand_query(search_query)
+        with tracking(tracker, "retrieve"):
+            hits = self._retriever.retrieve(
+                [search_query, *expansions], k=self._settings.retrieval_k, fetch_k=self._settings.retrieval_fetch_k
+            )
 
-        # 5. Hybrid search + rerank.
-        hits = self._retriever.retrieve(
-            [search_query, *expansions],
-            k=self._settings.retrieval_k,
-            fetch_k=self._settings.retrieval_fetch_k,
-        )
         yield {"status": "reranking"}
-        top_hits = self._reranker.rerank(
-            question, hits, top_n=self._settings.rerank_top_n
-        )
+        with tracking(tracker, "rerank"):
+            top_hits = self._reranker.rerank(question, hits, top_n=self._settings.rerank_top_n)
         citations = self._build_citations(top_hits)
-        self._log_retrieval_run(run_tree, search_query, top_hits)
 
-        # 6. Generate streamed answer.
         yield {"status": "generating"}
-        self._conversation_service.add_user_message(conversation_id, question)
-        messages = self._build_prompt(history_before, question, top_hits, mode)
-        accumulated: list[str] = []
-        final_usage: TokenUsage | None = None
+        # Internal event (not forwarded over SSE): the exact excerpts the model sees,
+        # numbered as in the prompt. The eval judge scores against these.
+        yield {"contexts": [hit.document.page_content for hit in top_hits]}
+        messages = self._build_prompt(history, question, top_hits, mode)
+        answer = yield from self._stream_llm(self._chat, messages, tracker, "generate")
 
-        for delta, usage in self._chat.stream_with_usage(messages):
+        if use_cache and answer and NOT_FOUND_PHRASE.lower() not in answer.lower():
+            with tracking(tracker, "cache"):
+                self._cache.store(question, answer, citations, scope=mode.value)
+        yield from self._finish(run, answer, citations)
+
+    def generate_answer(
+        self, conversation_id: UUID, question: str, *, mode: ChatMode = ChatMode.ANSWER
+    ) -> ChatGenerationResult:
+        """Non-streaming wrapper over :meth:`stream_answer` (REST + eval harness)."""
+
+        parts: list[str] = []
+        citations: list[Citation] = []
+        contexts: list[str] = []
+        final: dict[str, Any] = {}
+        for event in self.stream_answer(conversation_id, question, mode=mode):
+            if "delta" in event:
+                parts.append(event["delta"])
+            if "contexts" in event:
+                contexts = event["contexts"]
+            if "citations" in event:
+                citations = [Citation(**c) for c in event["citations"]]
+            if "usage" in event:
+                final = event
+        return ChatGenerationResult(
+            answer="".join(parts).strip(),
+            citations=citations,
+            usage=TokenUsage(**final["usage"]),
+            latency_ms=final["latency_ms"],
+            mode=final["mode"],
+            cache_hit=final["cache_hit"],
+            refused=final["intent"] == "refuse",
+            intent=final["intent"],
+            cost_breakdown=final["cost_breakdown"],
+            contexts=contexts,
+        )
+
+    # ------------------------------------------------------------------ pipeline steps
+
+    def _stream_llm(
+        self, client: LLMClient, messages: list[BaseMessage], tracker: UsageTracker, stage: str
+    ) -> Iterator[dict[str, Any]]:
+        """Stream deltas; returns the full text. Usage is added explicitly because the
+        tracker context cannot span ``yield`` (see app.core.usage)."""
+
+        parts: list[str] = []
+        for delta, usage in client.stream_with_usage(messages):
             if delta:
-                accumulated.append(delta)
+                parts.append(delta)
                 yield {"delta": delta}
             if usage is not None:
-                final_usage = usage
+                tracker.add(client.model_name, usage, stage)
+        return "".join(parts).strip()
 
-        answer = "".join(accumulated).strip()
-        usage = final_usage or TokenUsage()
-        latency_ms = int((time.perf_counter() - start) * 1000)
+    def _finish(
+        self,
+        run: _Run,
+        answer: str,
+        citations: Sequence[Citation] = (),
+        *,
+        intent: str = "retrieve",
+        cache_hit: bool = False,
+        refused: bool = False,
+        model: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Persist the exchange, record usage per model, emit the final events."""
 
+        latency_ms = int((time.perf_counter() - run.start) * 1000)
+        total = run.tracker.total
+        self._conversation_service.add_user_message(run.conversation_id, run.question)
         if answer:
-            assistant_msg = ChatMessage(
-                role=MessageRole.ASSISTANT,
-                content=answer,
-                citations=citations or None,
-                usage=usage,
-                latency_ms=latency_ms,
-                mode=mode.value,
+            self._conversation_service.append_assistant(
+                run.conversation_id,
+                ChatMessage(
+                    role=MessageRole.ASSISTANT,
+                    content=answer,
+                    citations=list(citations) or None,
+                    usage=total,
+                    latency_ms=latency_ms,
+                    mode=run.mode.value,
+                ),
             )
-            self._conversation_service.append_assistant(conversation_id, assistant_msg)
-            self._cache.store(question, answer, citations)
+        self._record_usage(run, latency_ms, cache_hit, intent, model or self._chat.model_name)
 
         if citations:
             yield {"citations": [asdict(c) for c in citations]}
         yield {
-            "usage": asdict(usage),
+            "usage": asdict(total),
             "latency_ms": latency_ms,
-            "cache_hit": False,
-            "mode": mode.value,
+            "cache_hit": cache_hit,
+            "mode": run.mode.value,
+            "intent": intent,
+            "refused": refused,
+            "cost_breakdown": run.tracker.breakdown(),
         }
-        self._usage.record(
-            UsageEvent(
-                conversation_id=str(conversation_id),
-                mode=mode.value,
-                model=self._chat.model_name,
-                usage=usage,
-                latency_ms=latency_ms,
-                cache_hit=False,
-            )
-        )
 
-    # ------------------------------------------------------------------
-    # Non-streaming entrypoint (used by eval harness + simple clients)
-    # ------------------------------------------------------------------
-    @traceable(name="chat_service.generate_answer", run_type="chain")
-    def generate_answer(
-        self,
-        conversation_id: UUID,
-        question: str,
-        *,
-        mode: ChatMode = ChatMode.ANSWER,
-        run_tree: Any | None = None,
-    ) -> ChatGenerationResult:
-        start = time.perf_counter()
+    def _record_usage(self, run: _Run, latency_ms: int, cache_hit: bool, intent: str, primary_model: str) -> None:
+        """One row per model so the per-model cost summary is accurate. The row for the
+        primary model carries latency and cache flag; request_id groups the rows."""
 
-        conversation = self._conversation_service.get_conversation(conversation_id)
-        if not conversation:
-            raise ValueError("Conversation not found")
-
-        if self._settings.enable_moderation and self._moderation.check(question).flagged:
-            return self._refusal_result(
-                conversation_id,
-                question,
-                "Your question was flagged by content moderation — please rephrase.",
-                mode=mode,
-                start=start,
-            )
-
-        intent = self._router.classify(question)
-        if intent == QueryIntent.REFUSE:
-            return self._refusal_result(conversation_id, question, REFUSAL_MESSAGE, mode=mode, start=start)
-
-        if intent == QueryIntent.CHITCHAT:
-            return self._chitchat_result(conversation_id, conversation.messages, question, mode, start)
-
-        cached = self._cache.lookup(question)
-        if cached:
-            self._conversation_service.add_user_message(conversation_id, question)
-            latency_ms = int((time.perf_counter() - start) * 1000)
-            assistant_msg = ChatMessage(
-                role=MessageRole.ASSISTANT,
-                content=cached.answer,
-                citations=list(cached.citations) or None,
-                usage=TokenUsage(),
-                latency_ms=latency_ms,
-                mode=mode.value,
-            )
-            self._conversation_service.append_assistant(conversation_id, assistant_msg)
-            return ChatGenerationResult(
-                answer=cached.answer,
-                citations=list(cached.citations),
-                usage=TokenUsage(),
-                latency_ms=latency_ms,
-                mode=mode.value,
-                cache_hit=True,
-            )
-
-        history = list(conversation.messages)
-        search_query = self._rewrite_question(history, question)
-        expansions = self._expand_query(search_query)
-        hits = self._retriever.retrieve(
-            [search_query, *expansions],
-            k=self._settings.retrieval_k,
-            fetch_k=self._settings.retrieval_fetch_k,
-        )
-        top_hits = self._reranker.rerank(question, hits, top_n=self._settings.rerank_top_n)
-        citations = self._build_citations(top_hits)
-        self._log_retrieval_run(run_tree, search_query, top_hits)
-
-        self._conversation_service.add_user_message(conversation_id, question)
-        messages = self._build_prompt(history, question, top_hits, mode)
-        response = self._chat.invoke(messages)
-        answer = (response.content if isinstance(response, AIMessage) else str(response.content)).strip()
-        usage = _usage_from_response(response) or TokenUsage()
-        latency_ms = int((time.perf_counter() - start) * 1000)
-
-        if answer:
-            self._conversation_service.append_assistant(
-                conversation_id,
-                ChatMessage(
-                    role=MessageRole.ASSISTANT,
-                    content=answer,
-                    citations=citations or None,
+        mode = run.mode.value if intent == "retrieve" else intent
+        by_model = dict(run.tracker.by_model) or {primary_model: TokenUsage()}
+        primary = primary_model if primary_model in by_model else next(iter(by_model))
+        for model, usage in by_model.items():
+            is_primary = model == primary
+            self._usage.record(
+                UsageEvent(
+                    conversation_id=str(run.conversation_id),
+                    mode=mode,
+                    model=model,
                     usage=usage,
-                    latency_ms=latency_ms,
-                    mode=mode.value,
-                ),
+                    latency_ms=latency_ms if is_primary else None,
+                    cache_hit=cache_hit and is_primary,
+                    request_id=run.request_id,
+                )
             )
-            self._cache.store(question, answer, citations)
 
-        self._usage.record(
-            UsageEvent(
-                conversation_id=str(conversation_id),
-                mode=mode.value,
-                model=self._chat.model_name,
-                usage=usage,
-                latency_ms=latency_ms,
-                cache_hit=False,
-            )
-        )
-        return ChatGenerationResult(
-            answer=answer,
-            citations=citations,
-            usage=usage,
-            latency_ms=latency_ms,
-            mode=mode.value,
-        )
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
     def _build_prompt(
-        self,
-        history: Sequence[ChatMessage],
-        question: str,
-        hits: Sequence[RetrievalHit],
-        mode: ChatMode,
+        self, history: Sequence[ChatMessage], question: str, hits: Sequence[RetrievalHit], mode: ChatMode
     ) -> list[BaseMessage]:
-        system = SystemMessage(content=RESEARCH_ASSISTANT_SYSTEM_PROMPT)
-        trimmed = self._trim_history(history)
-        history_messages = self._to_langchain_messages(trimmed)
         excerpts = [hit.document.page_content for hit in hits]
-        user = HumanMessage(content=build_user_prompt(question=question, excerpts=excerpts, mode=mode))
-        return [system, *history_messages, user]
+        return [
+            SystemMessage(content=RESEARCH_ASSISTANT_SYSTEM_PROMPT),
+            *self._to_langchain_messages(self._trim_history(history)),
+            HumanMessage(content=build_user_prompt(question=question, excerpts=excerpts, mode=mode)),
+        ]
 
     def _trim_history(self, history: Sequence[ChatMessage]) -> list[ChatMessage]:
-        """Keep history short so we don't blow the context window on long threads."""
         return list(history)[-self._settings.max_conversation_history :]
 
-    def _to_langchain_messages(self, messages: Sequence[ChatMessage]) -> list[BaseMessage]:
-        lc: list[BaseMessage] = []
-        for m in messages:
-            if m.role == MessageRole.USER:
-                lc.append(HumanMessage(content=m.content))
-            elif m.role == MessageRole.ASSISTANT:
-                lc.append(AIMessage(content=m.content))
-            elif m.role == MessageRole.SYSTEM:
-                lc.append(SystemMessage(content=m.content))
-        return lc
+    @staticmethod
+    def _to_langchain_messages(messages: Sequence[ChatMessage]) -> list[BaseMessage]:
+        kinds = {MessageRole.USER: HumanMessage, MessageRole.ASSISTANT: AIMessage, MessageRole.SYSTEM: SystemMessage}
+        return [kinds[m.role](content=m.content) for m in messages if m.role in kinds]
 
     def _rewrite_question(self, history: Sequence[ChatMessage], question: str) -> str:
         if not history:
             return question
-        lc_messages: list[BaseMessage] = [SystemMessage(content=QUERY_REWRITE_SYSTEM_PROMPT)]
-        lc_messages.extend(self._to_langchain_messages(self._trim_history(history)))
-        lc_messages.append(HumanMessage(content=f"New question: {question}"))
+        messages: list[BaseMessage] = [
+            SystemMessage(content=QUERY_REWRITE_SYSTEM_PROMPT),
+            *self._to_langchain_messages(self._trim_history(history)),
+            HumanMessage(content=f"New question: {question}"),
+        ]
         try:
-            response = self._utility.invoke(lc_messages)
+            response = self._utility.invoke(messages)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Query rewrite failed: %s", exc)
             return question
-        rewritten = (response.content or question).strip().strip('"')
+        rewritten = str(response.content or "").strip().strip('"')
         return rewritten or question
 
     def _expand_query(self, question: str) -> list[str]:
-        if self._settings.query_variations <= 1:
+        n = self._settings.query_variations
+        if n <= 1:
             return []
-        structured = self._utility.with_structured_output(_QueryVariations)
         try:
-            response: _QueryVariations = structured.invoke(
+            response = self._utility.invoke_structured(
                 [
                     SystemMessage(content=QUERY_EXPANSION_SYSTEM_PROMPT),
-                    HumanMessage(
-                        content=(
-                            f"Generate {self._settings.query_variations} variations of this query:\n{question}"
-                        )
-                    ),
-                ]
+                    HumanMessage(content=f"Generate {n} variations of this query:\n{question}"),
+                ],
+                _QueryVariations,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Query expansion failed: %s", exc)
@@ -439,40 +356,26 @@ class ChatService:
         out: list[str] = []
         for q in response.queries or []:
             normalized = q.strip()
-            fingerprint = normalized.lower()
-            if normalized and fingerprint not in seen:
-                seen.add(fingerprint)
+            if normalized and normalized.lower() not in seen:
+                seen.add(normalized.lower())
                 out.append(normalized)
-            if len(out) >= self._settings.query_variations:
-                break
-        return out
+        return out[:n]
 
-    def _build_citations(self, hits: Sequence[RetrievalHit]) -> list[Citation]:
+    @staticmethod
+    def _build_citations(hits: Sequence[RetrievalHit]) -> list[Citation]:
         citations: list[Citation] = []
         seen: set[tuple[str, int | None, str]] = set()
         for hit in hits:
             doc: Document = hit.document
             metadata = doc.metadata or {}
             source = str(metadata.get("source") or metadata.get("file_path") or "unknown")
-            filename = Path(source).name if source and source != "unknown" else (
-                metadata.get("filename") or "unknown"
-            )
+            filename = metadata.get("filename") or (Path(source).name if source != "unknown" else "unknown")
             raw_page = metadata.get("page", metadata.get("page_number"))
-            if isinstance(raw_page, int):
-                page: int | None = raw_page
-            elif isinstance(raw_page, str) and raw_page.isdigit():
-                page = int(raw_page)
-            else:
-                page = None
-            if source.lower().endswith(".txt"):
-                page = None
+            page = raw_page if isinstance(raw_page, int) else int(raw_page) if str(raw_page).isdigit() else None
             content = doc.page_content.strip()
-            if not content:
+            if not content or (source, page, content) in seen:
                 continue
-            identity = (source, page, content)
-            if identity in seen:
-                continue
-            seen.add(identity)
+            seen.add((source, page, content))
             citations.append(
                 Citation(
                     source=source,
@@ -487,191 +390,12 @@ class ChatService:
             )
         return citations
 
-    # ------- Chitchat / refusal paths (no retrieval) ----------
-    def _handle_chitchat(
-        self,
-        conversation_id: UUID,
-        history: Sequence[ChatMessage],
-        question: str,
-        mode: ChatMode,
-        start: float,
-    ) -> Iterable[dict[str, Any]]:
-        yield {"status": "chitchat"}
-        self._conversation_service.add_user_message(conversation_id, question)
-        messages: list[BaseMessage] = [SystemMessage(content=CHITCHAT_SYSTEM_PROMPT)]
-        messages.extend(self._to_langchain_messages(self._trim_history(history)))
-        messages.append(HumanMessage(content=question))
 
-        accumulated: list[str] = []
-        final_usage: TokenUsage | None = None
-        for delta, usage in self._utility.stream_with_usage(messages):
-            if delta:
-                accumulated.append(delta)
-                yield {"delta": delta}
-            if usage is not None:
-                final_usage = usage
-
-        answer = "".join(accumulated).strip()
-        usage = final_usage or TokenUsage()
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        if answer:
-            self._conversation_service.append_assistant(
-                conversation_id,
-                ChatMessage(
-                    role=MessageRole.ASSISTANT,
-                    content=answer,
-                    usage=usage,
-                    latency_ms=latency_ms,
-                    mode=mode.value,
-                ),
-            )
-        yield {
-            "usage": asdict(usage),
-            "latency_ms": latency_ms,
-            "cache_hit": False,
-            "mode": mode.value,
-            "intent": "chitchat",
-        }
-        self._usage.record(
-            UsageEvent(
-                conversation_id=str(conversation_id),
-                mode="chitchat",
-                model=self._utility.model_name,
-                usage=usage,
-                latency_ms=latency_ms,
-                cache_hit=False,
-            )
-        )
-
-    def _finalize_refusal(
-        self,
-        conversation_id: UUID,
-        question: str,
-        message: str,
-        *,
-        mode: ChatMode,
-        start: float,
-    ) -> Iterable[dict[str, Any]]:
-        self._conversation_service.add_user_message(conversation_id, question)
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        usage = TokenUsage()
-        self._conversation_service.append_assistant(
-            conversation_id,
-            ChatMessage(
-                role=MessageRole.ASSISTANT,
-                content=message,
-                usage=usage,
-                latency_ms=latency_ms,
-                mode=mode.value,
-            ),
-        )
-        yield {"status": "refused"}
-        yield {"delta": message}
-        yield {
-            "usage": asdict(usage),
-            "latency_ms": latency_ms,
-            "cache_hit": False,
-            "mode": mode.value,
-            "intent": "refuse",
-        }
-
-    def _refusal_result(
-        self,
-        conversation_id: UUID,
-        question: str,
-        message: str,
-        *,
-        mode: ChatMode,
-        start: float,
-    ) -> ChatGenerationResult:
-        self._conversation_service.add_user_message(conversation_id, question)
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        usage = TokenUsage()
-        self._conversation_service.append_assistant(
-            conversation_id,
-            ChatMessage(
-                role=MessageRole.ASSISTANT,
-                content=message,
-                usage=usage,
-                latency_ms=latency_ms,
-                mode=mode.value,
-            ),
-        )
-        return ChatGenerationResult(
-            answer=message,
-            citations=[],
-            usage=usage,
-            latency_ms=latency_ms,
-            mode=mode.value,
-            refused=True,
-        )
-
-    def _chitchat_result(
-        self,
-        conversation_id: UUID,
-        history: Sequence[ChatMessage],
-        question: str,
-        mode: ChatMode,
-        start: float,
-    ) -> ChatGenerationResult:
-        self._conversation_service.add_user_message(conversation_id, question)
-        messages: list[BaseMessage] = [SystemMessage(content=CHITCHAT_SYSTEM_PROMPT)]
-        messages.extend(self._to_langchain_messages(self._trim_history(history)))
-        messages.append(HumanMessage(content=question))
-        response = self._utility.invoke(messages)
-        answer = (response.content if isinstance(response, AIMessage) else str(response.content)).strip()
-        usage = _usage_from_response(response) or TokenUsage()
-        latency_ms = int((time.perf_counter() - start) * 1000)
-        if answer:
-            self._conversation_service.append_assistant(
-                conversation_id,
-                ChatMessage(
-                    role=MessageRole.ASSISTANT,
-                    content=answer,
-                    usage=usage,
-                    latency_ms=latency_ms,
-                    mode=mode.value,
-                ),
-            )
-        return ChatGenerationResult(
-            answer=answer,
-            citations=[],
-            usage=usage,
-            latency_ms=latency_ms,
-            mode=mode.value,
-        )
-
-    def _log_retrieval_run(
-        self, run_tree: Any | None, question: str, hits: Sequence[RetrievalHit]
-    ) -> None:
-        if not run_tree or not hasattr(run_tree, "create_child"):
-            return
-        try:
-            child = run_tree.create_child(
-                name="retrieval", run_type="retriever", inputs={"question": question}
-            )
-            child.end(outputs={"documents": [_hit_snapshot(h) for h in hits]})
-        except Exception:  # pragma: no cover
-            pass
-
-
-def _hit_snapshot(hit: RetrievalHit) -> dict[str, Any]:
-    meta = hit.document.metadata or {}
-    return {
-        "document_id": meta.get("document_id"),
-        "filename": meta.get("filename"),
-        "chunk_id": meta.get("chunk_id"),
-        "score": round(hit.score, 4),
-        "sources": list(hit.sources),
-        "preview": hit.document.page_content[:200],
-    }
-
-
-def _usage_from_response(response: BaseMessage) -> TokenUsage | None:
-    metadata = getattr(response, "response_metadata", None)
-    if not isinstance(metadata, dict):
-        return None
-    value = metadata.get("personarag_usage")
-    if isinstance(value, TokenUsage):
-        return value
-    return None
+@dataclass
+class _Run:
+    conversation_id: UUID
+    question: str
+    mode: ChatMode
+    start: float
+    tracker: UsageTracker
+    request_id: str = field(default_factory=lambda: uuid.uuid4().hex)

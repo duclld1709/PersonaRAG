@@ -17,6 +17,7 @@ type TopbarProps = {
   costUsd: number;
   latencyMs: number;
   cacheHit: boolean;
+  costBreakdown: Record<string, number>;
 };
 
 export default function Topbar({
@@ -31,6 +32,7 @@ export default function Topbar({
   costUsd,
   latencyMs,
   cacheHit,
+  costBreakdown,
 }: TopbarProps) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-surface/70 px-3 backdrop-blur">
@@ -54,7 +56,7 @@ export default function Topbar({
       </div>
 
       <div className="hidden items-center md:flex">
-        <CostMeter costUsd={costUsd} latencyMs={latencyMs} cacheHit={cacheHit} />
+        <CostMeter costUsd={costUsd} latencyMs={latencyMs} cacheHit={cacheHit} breakdown={costBreakdown} />
       </div>
 
       <button

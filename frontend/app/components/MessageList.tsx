@@ -57,7 +57,7 @@ export default function MessageList({
   onSuggestion,
 }: MessageListProps) {
   const scrollRef = useAutoScroll<HTMLDivElement>(
-    conversation?.messages.length + streamingAnswer.length + (status ?? "")
+    (conversation?.messages.length ?? 0) + streamingAnswer.length + (status ?? "")
   );
 
   const messages = conversation?.messages ?? [];

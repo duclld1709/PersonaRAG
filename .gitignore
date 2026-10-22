@@ -85,3 +85,8 @@ data/
 media/
 staticfiles/
 docs/
+
+# Evaluation: downloaded CC BY-SA corpus and scratch indexes (reports in eval/reports/runs are committed on purpose)
+backend/eval/corpus/d2l/
+backend/eval/reports/.work/
+*.tsbuildinfo

@@ -69,6 +69,7 @@ export default function ChatPage() {
   const [lastUsage, setLastUsage] = useState<TokenUsage>(EMPTY_USAGE);
   const [lastLatency, setLastLatency] = useState(0);
   const [lastCacheHit, setLastCacheHit] = useState(false);
+  const [lastBreakdown, setLastBreakdown] = useState<Record<string, number>>({});
   const [hoveredCitation, setHoveredCitation] = useState<Citation | null>(null);
 
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
@@ -248,10 +249,11 @@ export default function ChatPage() {
         onStatus: (s) => setStatus(s),
         onToken: (token) => setStreamAnswer((prev) => prev + token),
         onCitations: (c) => setStreamCitations(c),
-        onFinal: ({ usage: finalUsage, latencyMs, cacheHit }) => {
+        onFinal: ({ usage: finalUsage, latencyMs, cacheHit, costBreakdown }) => {
           setLastUsage(finalUsage);
           setLastLatency(latencyMs);
           setLastCacheHit(cacheHit);
+          setLastBreakdown(costBreakdown);
         },
         onError: (message) => setError(message),
       }, controller.signal);
@@ -365,6 +367,7 @@ export default function ChatPage() {
           costUsd={lastUsage.costUsd}
           latencyMs={lastLatency}
           cacheHit={lastCacheHit}
+          costBreakdown={lastBreakdown}
         />
 
         <div className="flex min-h-0 flex-1">

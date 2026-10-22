@@ -8,7 +8,7 @@ from logging import getLogger
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.prompts import ROUTER_SYSTEM_PROMPT
-from app.infrastructure.llm.openai_chat import OpenAIUtilityClient
+from app.domain.interfaces.llm_client import LLMClient
 
 logger = getLogger(__name__)
 
@@ -31,7 +31,7 @@ class QueryRouter:
     never silently drop a student's question.
     """
 
-    def __init__(self, client: OpenAIUtilityClient) -> None:
+    def __init__(self, client: LLMClient) -> None:
         self._client = client
 
     def classify(self, message: str) -> QueryIntent:
@@ -39,9 +39,7 @@ class QueryRouter:
         if not trimmed:
             return QueryIntent.CHITCHAT
         try:
-            response = self._client.invoke(
-                [SystemMessage(content=ROUTER_SYSTEM_PROMPT), HumanMessage(content=trimmed)]
-            )
+            response = self._client.invoke([SystemMessage(content=ROUTER_SYSTEM_PROMPT), HumanMessage(content=trimmed)])
         except Exception as exc:  # noqa: BLE001
             logger.warning("Router call failed, defaulting to retrieve: %s", exc)
             return QueryIntent.RETRIEVE

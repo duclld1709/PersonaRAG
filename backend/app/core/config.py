@@ -40,12 +40,16 @@ class Settings(BaseSettings):
     hybrid_vector_weight: float = Field(default=0.6, alias="HYBRID_VECTOR_WEIGHT")
     rerank_top_n: int = Field(default=5, alias="RERANK_TOP_N")
     semantic_cache_threshold: float = Field(default=0.95, alias="SEMANTIC_CACHE_THRESHOLD")
+    enable_semantic_cache: bool = Field(default=True, alias="ENABLE_SEMANTIC_CACHE")
     rrf_k: int = 60
+    vector_search: str = Field(default="mmr", alias="VECTOR_SEARCH")  # mmr | similarity
 
     chunk_size: int = Field(default=800, alias="CHUNK_SIZE")
     chunk_overlap: int = Field(default=150, alias="CHUNK_OVERLAP")
 
     enable_moderation: bool = Field(default=True, alias="ENABLE_MODERATION")
+    max_upload_mb: int = Field(default=20, alias="MAX_UPLOAD_MB")
+    cors_origins: list[str] = Field(default=["http://localhost:3000"], alias="CORS_ORIGINS")
     max_stream_tokens: int = 1500
     llm_temperature: float = 0.2
 

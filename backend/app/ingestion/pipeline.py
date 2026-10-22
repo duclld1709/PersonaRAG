@@ -110,9 +110,7 @@ class DocumentIngestionPipeline(DocumentIndexer):
 
             existing_checksum = existing_chunk.metadata.get("chunk_checksum")
             new_checksum = new_chunk.metadata.get("chunk_checksum")
-            if existing_checksum == new_checksum and _metadata_equivalent(
-                existing_chunk.metadata, new_chunk.metadata
-            ):
+            if existing_checksum == new_checksum and _metadata_equivalent(existing_chunk.metadata, new_chunk.metadata):
                 continue
             ids_to_delete.add(chunk_id)
             chunks_to_add.append(new_chunk)
