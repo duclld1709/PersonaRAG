@@ -148,11 +148,15 @@ def markdown(meta: dict, retrieval: dict[str, dict], generation: dict[str, dict]
 def write_run(meta: dict, retrieval_records: dict, generation_records: dict, retrieval: dict, generation: dict) -> Path:
     out = RUNS_DIR / meta["run_id"]
     out.mkdir(parents=True, exist_ok=True)
-    (out / "meta.json").write_text(json.dumps(meta, indent=2))
+    (out / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     for kind, groups in (("retrieval", retrieval_records), ("generation", generation_records)):
         for name, records in groups.items():
             path = out / f"{kind}-{name}.jsonl"
-            path.write_text("".join(json.dumps(r.as_dict(), ensure_ascii=False) + "\n" for r in records))
-    (out / "summary.json").write_text(json.dumps({"retrieval": retrieval, "generation": generation}, indent=2))
-    (out / "summary.md").write_text(markdown(meta, retrieval, generation))
+            path.write_text(
+                "".join(json.dumps(r.as_dict(), ensure_ascii=False) + "\n" for r in records), encoding="utf-8"
+            )
+    (out / "summary.json").write_text(
+        json.dumps({"retrieval": retrieval, "generation": generation}, indent=2), encoding="utf-8"
+    )
+    (out / "summary.md").write_text(markdown(meta, retrieval, generation), encoding="utf-8")
     return out

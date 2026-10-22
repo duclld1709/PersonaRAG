@@ -1,0 +1,75 @@
+{"id": "ml-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3265.6, "cost_usd": 1e-06, "ranks": [1, 2]}
+{"id": "ml-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2948.7, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "ml-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2883.7, "cost_usd": 2e-06, "ranks": [1, 2]}
+{"id": "ml-04", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2535.6, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "ml-05", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2757.3, "cost_usd": 1e-06, "ranks": [1, 2]}
+{"id": "ml-06", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3376.7, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "ml-07", "type": "single", "hit": 1.0, "recall": 0.5, "mrr": 1.0, "ndcg": 0.6131471927654584, "latency_ms": 2728.9, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "ml-08", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 0.5, "ndcg": 0.6309297535714575, "latency_ms": 2827.9, "cost_usd": 3e-06, "ranks": [2]}
+{"id": "ml-09", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3238.6, "cost_usd": 1e-06, "ranks": [1, 2]}
+{"id": "ml-10", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2973.6, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "rm-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3492.3, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "rm-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2775.3, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "rm-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2715.3, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "rm-04", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2907.6, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "rm-05", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2771.8, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "rm-06", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2911.3, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "rm-07", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2612.6, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "rm-08", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3068.0, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "cross-01", "type": "multi", "hit": 1.0, "recall": 0.5, "mrr": 0.5, "ndcg": 0.38685280723454163, "latency_ms": 3017.2, "cost_usd": 2e-06, "ranks": [2]}
+{"id": "cross-02", "type": "multi", "hit": 0.0, "recall": 0.0, "mrr": 0.0, "ndcg": 0.0, "latency_ms": 3399.3, "cost_usd": 2e-06, "ranks": []}
+{"id": "d2l-dropout-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2902.4, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-dropout-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2852.0, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "d2l-dropout-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2807.4, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-dropout-04", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2537.5, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-adam-01", "type": "single", "hit": 0.0, "recall": 0.0, "mrr": 0.0, "ndcg": 0.0, "latency_ms": 2904.5, "cost_usd": 2e-06, "ranks": []}
+{"id": "d2l-adam-02", "type": "single", "hit": 0.0, "recall": 0.0, "mrr": 0.0, "ndcg": 0.0, "latency_ms": 3006.4, "cost_usd": 1e-06, "ranks": []}
+{"id": "d2l-adam-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 0.5, "ndcg": 0.6309297535714575, "latency_ms": 2660.7, "cost_usd": 1e-06, "ranks": [2]}
+{"id": "d2l-wd-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2659.3, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "d2l-wd-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2494.4, "cost_usd": 3e-06, "ranks": [1]}
+{"id": "d2l-wd-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3106.8, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-wd-04", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2780.3, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-gen-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2358.5, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "d2l-gen-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2543.6, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-gen-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3546.5, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "d2l-gen-04", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3244.2, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-gd-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3138.1, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "d2l-gd-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 430.1, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-gd-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2355.3, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-gd-04", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2846.7, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "d2l-opt-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3047.3, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-opt-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3032.7, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-opt-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 0.5, "ndcg": 0.6309297535714575, "latency_ms": 2832.5, "cost_usd": 1e-06, "ranks": [2]}
+{"id": "d2l-opt-04", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2605.5, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-sgd-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2551.0, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-sgd-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2646.0, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-sgd-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 0.5, "ndcg": 0.6309297535714575, "latency_ms": 2724.1, "cost_usd": 2e-06, "ranks": [2]}
+{"id": "d2l-mb-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2765.7, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-mb-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3039.9, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "d2l-mb-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2791.7, "cost_usd": 2e-06, "ranks": [1, 2]}
+{"id": "d2l-mom-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 0.5, "ndcg": 0.6309297535714575, "latency_ms": 2795.9, "cost_usd": 1e-06, "ranks": [2]}
+{"id": "d2l-mom-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2799.6, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-mom-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2947.3, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-bn-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2342.3, "cost_usd": 3e-06, "ranks": [1]}
+{"id": "d2l-bn-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2960.3, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-bn-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 0.5855700749881525, "latency_ms": 2833.2, "cost_usd": 3e-06, "ranks": [1, 3]}
+{"id": "d2l-bn-04", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 0.5, "ndcg": 0.6309297535714575, "latency_ms": 2629.0, "cost_usd": 2e-06, "ranks": [2]}
+{"id": "d2l-lstm-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2933.1, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "d2l-lstm-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 0.25, "ndcg": 0.43067655807339306, "latency_ms": 2841.1, "cost_usd": 1e-06, "ranks": [4]}
+{"id": "d2l-lstm-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 3052.0, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-tf-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2264.6, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-tf-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 0.9197207891481876, "latency_ms": 2900.1, "cost_usd": 2e-06, "ranks": [1, 3]}
+{"id": "d2l-tf-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2535.6, "cost_usd": 2e-06, "ranks": [1, 2]}
+{"id": "d2l-tf-04", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 0.3333333333333333, "ndcg": 0.5, "latency_ms": 3037.0, "cost_usd": 1e-06, "ranks": [3]}
+{"id": "d2l-shift-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2933.5, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "d2l-shift-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2771.0, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "d2l-shift-03", "type": "single", "hit": 0.0, "recall": 0.0, "mrr": 0.0, "ndcg": 0.0, "latency_ms": 2792.0, "cost_usd": 1e-06, "ranks": []}
+{"id": "d2l-shift-04", "type": "single", "hit": 1.0, "recall": 0.5, "mrr": 1.0, "ndcg": 0.6131471927654584, "latency_ms": 3599.1, "cost_usd": 2e-06, "ranks": [1]}
+{"id": "d2l-shift-05", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 1.0, "latency_ms": 2743.8, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "d2l-gc-01", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 0.5, "ndcg": 0.6309297535714575, "latency_ms": 2588.7, "cost_usd": 4e-06, "ranks": [2]}
+{"id": "d2l-gc-02", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 0.3333333333333333, "ndcg": 0.5, "latency_ms": 449.0, "cost_usd": 1e-06, "ranks": [3]}
+{"id": "d2l-gc-03", "type": "single", "hit": 1.0, "recall": 1.0, "mrr": 0.5, "ndcg": 0.6309297535714575, "latency_ms": 2869.2, "cost_usd": 2e-06, "ranks": [2]}
+{"id": "multi-01", "type": "multi", "hit": 1.0, "recall": 0.3333333333333333, "mrr": 0.5, "ndcg": 0.2960819109658652, "latency_ms": 2893.3, "cost_usd": 3e-06, "ranks": [2]}
+{"id": "multi-02", "type": "multi", "hit": 1.0, "recall": 0.5, "mrr": 1.0, "ndcg": 0.6131471927654584, "latency_ms": 3182.4, "cost_usd": 1e-06, "ranks": [1]}
+{"id": "multi-03", "type": "multi", "hit": 1.0, "recall": 1.0, "mrr": 1.0, "ndcg": 0.9197207891481876, "latency_ms": 2852.1, "cost_usd": 2e-06, "ranks": [1, 3]}
+{"id": "multi-04", "type": "multi", "hit": 0.0, "recall": 0.0, "mrr": 0.0, "ndcg": 0.0, "latency_ms": 2753.8, "cost_usd": 3e-06, "ranks": []}

@@ -1,0 +1,226 @@
+{
+  "retrieval": {},
+  "generation": {
+    "dense": {
+      "n": 81,
+      "faithfulness": {
+        "mean": 0.9582645502645503,
+        "lo": 0.929968253968254,
+        "hi": 0.9820952380952381,
+        "n": 75
+      },
+      "citation_precision": {
+        "mean": 0.9523174603174603,
+        "lo": 0.9198730158730158,
+        "hi": 0.978,
+        "n": 75
+      },
+      "correctness": {
+        "mean": 0.9533333333333334,
+        "lo": 0.9066666666666666,
+        "hi": 0.9866666666666667,
+        "n": 75
+      },
+      "context_recall": {
+        "mean": 0.86,
+        "lo": 0.78,
+        "hi": 0.9266666666666666,
+        "n": 75
+      },
+      "false_abstention_rate": {
+        "mean": 0.013333333333333334,
+        "lo": 0.0,
+        "hi": 0.04,
+        "n": 75
+      },
+      "out_of_scope_correct": {
+        "mean": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 4
+      },
+      "refusal_correct": {
+        "mean": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 2
+      },
+      "latency_p50_ms": 4830,
+      "latency_p95_ms": 6585,
+      "cost_usd_mean": 1.6419753086419753e-06,
+      "cost_usd_by_stage_mean": {
+        "generate": 0.0,
+        "retrieve": 1.6419753086419734e-06,
+        "router": 0.0
+      },
+      "judge_cost_usd_total": 0.0
+    },
+    "hybrid": {
+      "n": 81,
+      "faithfulness": {
+        "mean": 0.9473756613756614,
+        "lo": 0.9189365079365079,
+        "hi": 0.9721851851851852,
+        "n": 75
+      },
+      "citation_precision": {
+        "mean": 0.9448095238095238,
+        "lo": 0.9162698412698412,
+        "hi": 0.9704126984126984,
+        "n": 75
+      },
+      "correctness": {
+        "mean": 0.9666666666666667,
+        "lo": 0.9266666666666666,
+        "hi": 0.9933333333333333,
+        "n": 75
+      },
+      "context_recall": {
+        "mean": 0.8666666666666667,
+        "lo": 0.7866666666666666,
+        "hi": 0.9333333333333333,
+        "n": 75
+      },
+      "false_abstention_rate": {
+        "mean": 0.02666666666666667,
+        "lo": 0.0,
+        "hi": 0.06666666666666667,
+        "n": 75
+      },
+      "out_of_scope_correct": {
+        "mean": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 4
+      },
+      "refusal_correct": {
+        "mean": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 2
+      },
+      "latency_p50_ms": 4987,
+      "latency_p95_ms": 6407,
+      "cost_usd_mean": 1.6419753086419753e-06,
+      "cost_usd_by_stage_mean": {
+        "generate": 0.0,
+        "retrieve": 1.6419753086419734e-06,
+        "router": 0.0
+      },
+      "judge_cost_usd_total": 0.0
+    },
+    "hybrid+rerank": {
+      "n": 81,
+      "faithfulness": {
+        "mean": 0.9526544401544401,
+        "lo": 0.9206563706563706,
+        "hi": 0.9774774774774775,
+        "n": 74
+      },
+      "citation_precision": {
+        "mean": 0.9524131274131274,
+        "lo": 0.9206563706563706,
+        "hi": 0.9772200772200772,
+        "n": 74
+      },
+      "correctness": {
+        "mean": 0.96,
+        "lo": 0.92,
+        "hi": 0.9866666666666667,
+        "n": 75
+      },
+      "context_recall": {
+        "mean": 0.8977777777777778,
+        "lo": 0.8288888888888889,
+        "hi": 0.9533333333333334,
+        "n": 75
+      },
+      "false_abstention_rate": {
+        "mean": 0.02666666666666667,
+        "lo": 0.0,
+        "hi": 0.06666666666666667,
+        "n": 75
+      },
+      "out_of_scope_correct": {
+        "mean": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 4
+      },
+      "refusal_correct": {
+        "mean": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 2
+      },
+      "latency_p50_ms": 7255,
+      "latency_p95_ms": 9239,
+      "cost_usd_mean": 1.6296296296296295e-06,
+      "cost_usd_by_stage_mean": {
+        "chitchat": 0.0,
+        "generate": 0.0,
+        "rerank": 0.0,
+        "retrieve": 1.6296296296296278e-06,
+        "router": 0.0
+      },
+      "judge_cost_usd_total": 0.0
+    },
+    "full": {
+      "n": 81,
+      "faithfulness": {
+        "mean": 0.98,
+        "lo": 0.96,
+        "hi": 0.9944444444444445,
+        "n": 75
+      },
+      "citation_precision": {
+        "mean": 0.9695555555555555,
+        "lo": 0.9473333333333334,
+        "hi": 0.9873333333333333,
+        "n": 75
+      },
+      "correctness": {
+        "mean": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 75
+      },
+      "context_recall": {
+        "mean": 0.9555555555555556,
+        "lo": 0.9155555555555556,
+        "hi": 0.9866666666666667,
+        "n": 75
+      },
+      "false_abstention_rate": {
+        "mean": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 75
+      },
+      "out_of_scope_correct": {
+        "mean": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 4
+      },
+      "refusal_correct": {
+        "mean": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 2
+      },
+      "latency_p50_ms": 11202,
+      "latency_p95_ms": 14151,
+      "cost_usd_mean": 8.111111111111112e-06,
+      "cost_usd_by_stage_mean": {
+        "chitchat": 0.0,
+        "expand": 0.0,
+        "generate": 0.0,
+        "rerank": 0.0,
+        "retrieve": 8.111111111111117e-06,
+        "router": 0.0
+      },
+      "judge_cost_usd_total": 0.0
+    }
+  }
+}

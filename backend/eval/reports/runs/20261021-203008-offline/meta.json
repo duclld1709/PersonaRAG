@@ -1,0 +1,17 @@
+{
+  "run_id": "20261021-203008-offline",
+  "offline": true,
+  "git_sha": "719df3b",
+  "corpus_fingerprint": "2ab19c3bc680",
+  "corpus_files": 16,
+  "chunks": 400,
+  "golden_fingerprint": "a15dda83e0f4",
+  "n_questions": 81,
+  "k": 5,
+  "models": {
+    "chat": "offline-chat",
+    "utility": "offline-utility",
+    "embedding": "hash-embeddings",
+    "judge": "offline-judge"
+  }
+}
