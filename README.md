@@ -27,7 +27,7 @@ It is also a full-stack engineering portfolio project: the usual quality levers 
 > **v2 correction.** The v1 README showed a results table (faithfulness 0.72 → 0.88,
 > "−10% cost", and so on). Those numbers came from the harness's `--dry-run` placeholder
 > generator, not from a model run. They have been removed. The harness was rebuilt so that
-> every number below can be traced to a run in [`backend/eval/reports/runs/`](backend/eval/reports/runs/).
+> every number below can be traced to a run in [`backend/eval/reports/runs/`](backend/eval/reports/runs/) (BM25 baseline: [`20261012-033119-offline`](backend/eval/reports/runs/20261012-033119-offline/summary.md)).
 
 **Setup.** 400 chunks from 2 lecture notes plus 14 sections of *Dive into Deep Learning*
 (CC BY-SA, fetched at a pinned commit). 81 golden questions with **verbatim evidence
