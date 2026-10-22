@@ -1,16 +1,16 @@
 # PersonaRAG: A Lightweight Research Assistant for students
 
+![PersonaRAG demo](assets/demo.gif)
+
 ## What is this?
 
-PersonaRAG is a chatbot for students. You upload your own study materials (slides, papers, textbook chapters), and the chatbot answers **only from those files**. Every answer comes with citations, so you can check where it came from. If the answer is not in your files, it says so instead of making something up.
-
-It also refuses to help with plagiarism or hiding AI-written text.
-
+- PersonaRAG is a chatbot for students. You upload your own study materials (slides, papers, textbook chapters), and the chatbot answers only from those files. 
+- Answers are always cited, gaps are admitted rather than invented, and plagiarism or AI-hiding requests are refused.
 ## Why I built it
 
 When I study, I have a lot of PDFs and notes. ChatGPT is helpful, but it sometimes sounds sure about things that are wrong. I wanted a tool that sticks to my materials.
 
-This is also a learning project. I wanted to understand how a real RAG system works, so I built the main parts myself (search, reranking, caching, routing) and **tested whether each part actually helps** instead of assuming it does.
+This is also a learning project. I wanted to understand how a real RAG system works, so I built the main parts myself (search, reranking, caching, routing) and tested whether each part actually helps instead of assuming it does.
 
 ## How well does it work?
 
@@ -19,9 +19,9 @@ retrieval run [`20261021-223801`](backend/eval/reports/runs/20261021-223801/summ
 
 ### Test setup
 
-- **Documents:** 400 chunks from 2 lecture notes + 14 sections of *Dive into Deep Learning* (CC BY-SA).
-- **Questions:** 81 questions, each with the exact quote that proves the answer. They include single-source, multi-chapter, out-of-scope, and academic-integrity questions.
-- **Relevant** means "this chunk contains the evidence", not just "this chunk comes from the right file".
+- Documents: 400 chunks from 2 lecture notes + 14 sections of *Dive into Deep Learning* (CC BY-SA).
+- Questions: 81 questions, each with the exact quote that proves the answer. They include single-source, multi-chapter, out-of-scope, and academic-integrity questions.
+- Relevant means "this chunk contains the evidence", not just "this chunk comes from the right file".
 - Numbers have 95% bootstrap confidence intervals (see the full files for the ranges).
 - Models for these runs: `gpt-6-luna` (chat, utility, and judge) and `text-embedding-3-large`.
 
@@ -101,85 +101,23 @@ docker compose up --build
 
 ---
 
-## Project structure
+## Explore the code
 
-```
-PersonaRAG/
-├── backend/
-│   ├── app/
-│   │   ├── api/              routes, schemas
-│   │   ├── core/             config, prompts, logging
-│   │   ├── domain/           models, interfaces
-│   │   ├── infrastructure/   OpenAI, Chroma, SQLite, storage, moderation
-│   │   ├── retrieval/        bm25, hybrid, reranker, cache, router
-│   │   ├── ingestion/        loaders, splitters, indexing pipeline
-│   │   ├── services/         chat, conversation, document, usage
-│   │   ├── bootstrap.py      wires everything together
-│   │   └── main.py           FastAPI entry point
-│   ├── eval/                 corpus fetcher, test questions, metrics, reports
-│   ├── tests/                46 offline tests
-│   └── pyproject.toml
-├── frontend/
-│   ├── app/                  pages, components, hooks, lib
-│   └── package.json
-├── docker-compose.yml
-└── LICENSE
-```
-
----
-
-## Main API endpoints
-
-| Method | Path | What it does |
-|---|---|---|
-| `POST` | `/api/v1/chat/stream` | Streaming chat (status, tokens, citations, usage) |
-| `POST` | `/api/v1/chat/respond` | Non-streaming chat |
-| `GET` | `/api/v1/conversations` | Recent conversations |
-| `POST` | `/api/v1/documents` | Upload and index a file (.pdf, .docx, .md, .txt) |
-| `GET` | `/api/v1/documents` | List documents with tags and chunk counts |
-| `GET` | `/api/v1/settings` | Current settings |
-| `PATCH` | `/api/v1/settings` | Change models, retrieval K, rerank size, cache threshold, moderation |
-| `GET` | `/api/v1/usage/summary` | Tokens, cost, cache hits, latency |
-
----
-
-## Design choices
-
-- **OpenAI only.** The first version also supported Gemini and HuggingFace. That added complexity and nobody needed it, so I removed it.
-- **Real hybrid search.** My old "hybrid" was just multi-query on a vector store. Now it is BM25 + dense search merged by rank.
-- **LLM reranker instead of Cohere.** Keeps everything in one vendor and one bill.
-- **SQLite instead of Postgres.** The data is small. If the project grows, the repository interfaces let me swap in Postgres without changing the services.
-- **Test set with evidence quotes.** Retrieval can be scored without an LLM, so CI can check it without an API key.
-- **Clean Architecture paid off.** Moving from in-memory storage to SQLite only needed one new file and no changes in the services.
-
----
+For more implementation details, see the [backend README](./backend/README.md) and [frontend README](./frontend/README.md).
 
 ### What I learned
 
-- **The full pipeline was the best.** It beat the simple dense baseline on both ranking (MRR 0.898 vs 0.702) and answer correctness (100% vs 95.3%).
-- **The reranker helped the most** for ranking. Hybrid alone and multi-query alone did not show a clear improvement on this small dataset.
-- **MMR alone made things worse.** It tries to make results more diverse, but it pushed out similar chunks that had the evidence (Hit@5 dropped from 89.3% to 77.3%). It only worked well as part of the full pipeline.
-- **Good retrieval leads to good answers.** Most wrong answers happened when the evidence never reached the prompt. The full pipeline found it and got all of those right.
-- **Quality costs speed.** The full pipeline is about 2.3× slower than dense (11.2 s vs 4.8 s). Using fewer query variations or reranking fewer results would help.
+- The full pipeline was the best. It beat the simple dense baseline on both ranking (MRR 0.898 vs 0.702) and answer correctness (100% vs 95.3%).
+- The reranker helped the most for ranking. Hybrid alone and multi-query alone did not show a clear improvement on this small dataset.
+- MMR alone made things worse. It tries to make results more diverse, but it pushed out similar chunks that had the evidence (Hit@5 dropped from 89.3% to 77.3%). It only worked well as part of the full pipeline.
+- Good retrieval leads to good answers. Most wrong answers happened when the evidence never reached the prompt. The full pipeline found it and got all of those right.
+- Quality costs speed. The full pipeline is about 2.3× slower than dense (11.2 s vs 4.8 s). Using fewer query variations or reranking fewer results would help.
 
 ### Limitations
 
-- **The same model writes and judges answers.** This can make scores look better than they really are. I have not yet compared the judge with human labels, so treat faithfulness and correctness as upper limits.
-- **Cost was not measured.** `gpt-6-luna` is not in my pricing table, so reports show about $0 for these runs.
-- **Some test groups are tiny.** Only 4 out-of-scope and 2 refusal questions. Passing all of them is nice, but too few to say anything about a rate. Also, "What is the capital of France?" was sent to small talk and answered "Paris" from the model's own knowledge. My scoring accepted that, but it is not ideal.
-- **Different models than the app default.** The app uses `gpt-4.1` and `gpt-4.1-mini`. The eval runs used `gpt-6-luna` for everything.
-- **Small dataset.** One corpus of 400 chunks. Results may be different on your own materials.
-
-CI runs the evaluation offline on every pull request and **fails if BM25 Hit@5 drops below 0.80**.
-
-```bash
-cd backend
-pip install -e .[dev]
-python -m eval.fetch_corpus
-export OPENAI_API_KEY=sk-...
-python -m eval.run all                 # retrieval + answers + judge
-python -m eval.run all --offline       # no API key: real BM25, the rest is a smoke test
-```
+- The same model writes and judges answers. This can make scores look better than they really are. I have not yet compared the judge with human labels, so treat faithfulness and correctness as upper limits.
+- Cost was not measured. `gpt-6-luna` is not in my pricing table, so reports show about $0 for these runs.
+- Small dataset. One corpus of 400 chunks. Results may be different on your own materials.
 
 ## License
 
